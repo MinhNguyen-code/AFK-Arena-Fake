@@ -1,0 +1,6 @@
+{
+  "name": "Eternal Realms — 2D/2.5D Idle RPG",
+  "description": "Complete browser-based 2D/2.5D Idle RPG & 5v5 Auto-Battler powered by Phaser 3, React, TypeScript, and Zustand with 14 original heroes, 30 campaign stages, equipment, offline progression, and free summons.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
