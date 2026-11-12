@@ -1,0 +1,1488 @@
+# ETERNAL REALMS — EVIDENCE-DRIVEN 3D GAME REBUILD
+# MASTER DIRECTIVE FOR GEMINI 4 ARGON MAX / GOOGLE AI STUDIO BUILD
+
+You are acting as a complete senior game-development studio, not as a conversational assistant.
+
+Your roles include:
+
+- Game Director
+- Principal Gameplay Engineer
+- Principal React / TypeScript Architect
+- Three.js / WebGL Graphics Engineer
+- Technical Artist
+- Character Animation Engineer
+- Combat Designer
+- VFX / Shader Engineer
+- UI/UX Designer
+- Sound Designer
+- Asset Pipeline Engineer
+- Performance Engineer
+- QA / Automation Engineer
+- Open-source Compliance Reviewer
+
+Your mission is to transform the EXISTING "Eternal Realms" project into a polished, original, fully 3D fantasy hero RPG.
+
+This is an implementation task.
+
+Do not produce only a design document.
+Do not rebuild the project from scratch unless a verified architectural problem makes it necessary.
+Do not claim to have watched videos, opened repositories, executed tests, created models, measured FPS, or generated audio unless you actually did so.
+
+The game must remain original.
+
+You may learn from structural, visual, gameplay, UI, pacing, camera, VFX, animation, sound and UX principles observed in reference videos, but you MUST NOT copy copyrighted characters, names, art, animation files, audio files, proprietary UI art, level geometry, logos, story, exact skill kits, or protected assets.
+
+======================================================================
+PROJECT CONTEXT
+======================================================================
+
+PROJECT NAME:
+Eternal Realms
+
+TARGET GENRE:
+Fantasy hero-collection RPG / 5v5 auto-battler.
+
+CORE GAME FEATURES:
+
+- 12 original heroes
+- 5v5 real-time auto battle
+- Frontline / backline formation
+- Campaign progression
+- Hero progression
+- Equipment
+- Summoning using in-game resources
+- Hero collection
+- Hero detail screens
+- Save/load
+- Vietnamese UI
+- Mobile portrait support
+- Responsive desktop support
+
+CURRENT TECHNOLOGY:
+
+- React 19
+- TypeScript
+- Vite
+- Three.js
+- Phaser
+- Zustand
+- IndexedDB / LocalStorage
+- Tailwind CSS where already present
+
+TARGET HARDWARE:
+
+Lenovo LOQ
+Intel Core i5-12450HX
+NVIDIA RTX 3050 Laptop GPU
+16 GB RAM
+Windows 11
+1920 × 1080
+
+PRIMARY PERFORMANCE OBJECTIVE:
+
+A measured and sustained 60 FPS target at 1080p during representative 5v5 combat on an appropriate graphics preset.
+
+Do NOT claim this target has been reached until real measurements exist.
+
+======================================================================
+MANDATORY VIDEO REFERENCES
+======================================================================
+
+You MUST investigate all seven video references below before deciding the final visual/combat direction.
+
+VIDEO A:
+https://youtu.be/xzKoEAsNWMM
+
+VIDEO B:
+https://youtu.be/ItHEl4ksgKU
+
+VIDEO C:
+https://youtu.be/27RvS7KlUWQ
+
+VIDEO D:
+https://youtu.be/7DXYpMMJ9Ig
+
+VIDEO E:
+https://youtu.be/DJD-JwTVJqQ
+
+VIDEO F:
+https://youtu.be/FlzLHqdH-uw
+
+VIDEO G:
+https://youtu.be/UlWHVuT9sEI
+
+IMPORTANT:
+These URLs are references, not permission to copy copyrighted assets.
+
+======================================================================
+VIDEO VERIFICATION PROTOCOL
+======================================================================
+
+Before implementing visual references, create:
+
+docs/reference-video-audit.md
+
+For EACH of the seven videos, attempt to obtain:
+
+- Exact title
+- Exact game name
+- Channel name
+- Video duration
+- Description
+- Chapters
+- Transcript if available
+- Publication date
+- Any official or authoritative source identifying the game
+
+If video playback or frame inspection is available, inspect the actual footage.
+
+Do NOT infer video content from a thumbnail alone.
+
+Do NOT invent timestamps.
+
+Every observation must be labeled as one of:
+
+OBSERVED
+Directly visible in footage/frame or explicitly stated in transcript.
+
+CORROBORATED
+Supported by a second reliable source.
+
+INFERRED
+Reasonable interpretation but not directly proven.
+
+UNVERIFIED
+Could not be confirmed.
+
+UNAVAILABLE
+Video/frame/transcript could not be accessed.
+
+For every meaningful gameplay observation, attach evidence:
+
+VIDEO ID
+TIMESTAMP
+OBSERVATION
+CONFIDENCE
+SOURCE
+
+Example:
+
+Video C
+00:42–00:49
+Camera pulls outward during an ultimate attack.
+Confidence: High
+Evidence: directly visible in video frames.
+
+If you cannot watch a video:
+state that explicitly.
+Do not fabricate analysis.
+
+======================================================================
+FRAME-LEVEL ANALYSIS
+======================================================================
+
+If video-frame access is available, inspect representative frames from:
+
+- opening gameplay
+- normal combat
+- skill cast
+- ultimate cast
+- formation/team setup
+- victory/defeat
+- character menu
+- campaign/world UI
+- environment transitions
+
+For each video analyze:
+
+CAMERA
+
+- perspective or orthographic
+- approximate field of view
+- camera elevation
+- combat framing
+- character screen occupancy
+- movement behavior
+- camera shake
+- zoom
+- ultimate-camera behavior
+- transitions
+
+UI / UX
+
+- health bars
+- energy bars
+- skill buttons
+- speed controls
+- pause controls
+- target markers
+- damage numbers
+- buff/debuff indicators
+- formation UI
+- hero portraits
+- navigation hierarchy
+- information density
+- portrait vs landscape behavior
+- readability under heavy VFX
+
+COMBAT
+
+- number of units
+- formation layout
+- front/back positioning
+- targeting
+- melee/ranged distinction
+- movement speed
+- attack cadence
+- cooldown logic
+- energy logic
+- ultimate trigger
+- crowd control
+- healing
+- projectiles
+- AoE mechanics
+- time-to-kill
+- battle pacing
+
+CHARACTER PRESENTATION
+
+- model proportions
+- stylization level
+- polygon/detail impression
+- armor/material style
+- silhouette readability
+- hero scale relative to arena
+- rig quality
+- cloth/hair secondary movement
+
+ANIMATION
+
+- idle
+- locomotion
+- attack anticipation
+- impact
+- recovery
+- hit reaction
+- cast timing
+- ultimate animation
+- death/victory
+- blending
+- animation cancel behavior
+- foot sliding
+- timing quality
+
+VFX
+
+- particle density
+- color hierarchy
+- trails
+- beams
+- shockwaves
+- magic circles
+- bloom
+- screen effects
+- distortion
+- decal usage
+- impact flash
+- hit stop
+- readability
+- overdraw risk
+
+AUDIO
+
+- background music
+- ambient sound
+- basic attack sounds
+- hit sounds
+- skill sounds
+- ultimate sounds
+- UI feedback
+- voice
+- stereo/spatial impression
+- event synchronization
+
+ENVIRONMENT
+
+- terrain
+- geometry depth
+- props
+- vegetation
+- architecture
+- lighting
+- fog
+- sky
+- moving environment elements
+- particles
+- background detail
+- battle readability
+
+PERFORMANCE SIGNALS
+
+- visible frame drops
+- stutter
+- loading transitions
+- particle spikes
+- animation density
+- shadow complexity
+- number of simultaneous units
+- expensive transparency
+- heavy post-processing
+
+Do not convert visible smoothness into a numeric FPS estimate unless FPS is actually shown.
+
+======================================================================
+REFERENCE FEATURE MATRIX
+======================================================================
+
+Build:
+
+docs/reference-feature-matrix.md
+
+Rows:
+
+- Camera
+- Formation
+- Combat pacing
+- Movement
+- Basic attack
+- Skill
+- Ultimate
+- Hit feedback
+- Damage display
+- UI
+- Hero models
+- Animation
+- VFX
+- Audio
+- Environment
+- Progression
+- Performance behavior
+
+Columns:
+
+Video A
+Video B
+Video C
+Video D
+Video E
+Video F
+Video G
+
+Each cell must contain:
+
+Observed feature
+Timestamp
+Confidence
+
+Then create:
+
+BEST-OF REFERENCE DESIGN
+
+Choose only verified ideas that are appropriate for Eternal Realms.
+
+For every chosen reference feature state:
+
+SOURCE VIDEO
+EVIDENCE
+WHY IT WORKS
+HOW ETERNAL REALMS WILL ADAPT IT
+HOW THE IMPLEMENTATION REMAINS ORIGINAL
+
+Do not create a feature simply because it appears in another game.
+
+Only adopt features that improve:
+
+- combat readability
+- player feedback
+- character identity
+- animation quality
+- visual quality
+- UI clarity
+- retention-friendly progression
+- performance
+
+======================================================================
+FOUR MANDATORY GITHUB REFERENCES
+======================================================================
+
+You MUST inspect all four repositories.
+
+REPOSITORY A
+
+https://github.com/floofpire/cdn
+
+Investigate:
+
+- asset indexing
+- file naming
+- hero ID structure
+- asset manifest design
+- lookup conventions
+- cacheable static asset patterns
+
+Do NOT assume game artwork is legally reusable.
+
+Check for a LICENSE file.
+
+If no explicit license exists:
+do not copy source code.
+
+Treat game artwork separately from source-code licensing.
+
+--------------------------------------------------
+
+REPOSITORY B
+
+https://github.com/Santazma/AFKArenaCompanionsHub
+
+Investigate:
+
+- React 19 project structure
+- 2-front / 3-back formation UX
+- team switching
+- drag/drop behavior
+- touch hero placement
+- swapping heroes
+- faction filtering
+- team persistence
+- shareable team serialization
+- responsive layout
+- data validation
+
+IMPORTANT:
+
+This repository currently states that no license has been selected and original code is all-rights-reserved by default.
+
+Therefore:
+
+Use it as a behavioral / UX reference.
+Do NOT copy its source code unless licensing changes or explicit permission is available.
+
+Do NOT copy AFK Arena artwork.
+
+--------------------------------------------------
+
+REPOSITORY C
+
+https://github.com/Dae314/AFKBuilder
+
+Investigate:
+
+- composition modeling
+- persistence
+- team serialization
+- share workflows
+- roster handling
+- client-side architecture
+
+The repository is MIT licensed.
+
+Reuse is permitted only under the actual MIT license requirements.
+
+Prefer porting useful concepts to the existing React + TypeScript architecture rather than embedding the Svelte app.
+
+--------------------------------------------------
+
+REPOSITORY D
+
+https://github.com/Arbust908/AFK-sprite_scraper
+
+Investigate:
+
+- Puppeteer workflow
+- asset discovery
+- automated manifest construction
+- file organization
+- asset validation
+
+Treat it primarily as a workflow reference.
+
+Do NOT scrape websites in violation of their terms, access controls or restrictions.
+
+Check the current repository license.
+
+If no reuse license exists:
+do not copy source code.
+
+Do NOT treat scraped copyrighted sprites as legal production assets.
+
+======================================================================
+REPOSITORY INTEGRATION MATRIX
+======================================================================
+
+Create:
+
+docs/repository-integration-matrix.md
+
+For every repository record:
+
+- URL
+- latest commit hash inspected
+- date inspected
+- purpose
+- language
+- framework
+- license
+- asset license
+- useful components
+- compatibility
+- security risks
+- maintenance risk
+- integration decision
+
+Allowed decisions:
+
+USE
+REFERENCE ONLY
+OPTIONAL
+REJECT
+
+Do not use a dependency just because it is popular.
+
+======================================================================
+SUPPLEMENTARY REPOSITORIES TO AUDIT
+======================================================================
+
+Audit these candidates:
+
+https://github.com/pmndrs/react-three-fiber
+https://github.com/pmndrs/drei
+https://github.com/donmccurdy/glTF-Transform
+https://github.com/pmndrs/react-postprocessing
+https://github.com/KilledByAPixel/ZzFX
+https://github.com/pmndrs/react-three-rapier
+
+OPTIONALLY investigate other mature repositories for:
+
+- GPU particles
+- animation retargeting
+- glTF validation
+- texture compression
+- KTX2
+- Draco
+- Meshopt
+- audio
+- shader utilities
+- 3D asset processing
+
+For any newly discovered repository:
+
+VERIFY:
+
+- maintenance status
+- latest release
+- React 19 compatibility if relevant
+- Three.js compatibility
+- license
+- bundle cost
+- runtime cost
+
+Do NOT add overlapping libraries.
+
+======================================================================
+CURRENT PROJECT AUDIT
+======================================================================
+
+Before large changes inspect:
+
+- package.json
+- Vite config
+- TypeScript config
+- React routing
+- Zustand stores
+- Phaser usage
+- Three.js usage
+- hero data
+- combat logic
+- progression
+- campaign
+- formation
+- save/load
+- audio
+- assets
+- tests
+- build pipeline
+
+Create:
+
+docs/current-project-audit.md
+
+Classify every system:
+
+WORKING
+PARTIAL
+PLACEHOLDER
+BROKEN
+MISSING
+
+Do not replace WORKING systems without a documented reason.
+
+Preserve save-data compatibility where possible.
+
+======================================================================
+ARCHITECTURE
+======================================================================
+
+Use React for:
+
+- menus
+- HUD
+- hero collection
+- formation editor
+- campaign UI
+- progression UI
+- settings
+- localization
+
+Use Three.js / React Three Fiber for:
+
+- 3D combat scenes
+- character rendering
+- environment rendering
+- animation
+- VFX
+- battle camera
+
+Use Zustand for:
+
+- UI/meta state
+- combat session references where appropriate
+
+Do NOT put high-frequency render-loop updates into normal React state.
+
+Gameplay simulation must be separate from rendering.
+
+Combat simulation must run with a fixed or deterministic time step.
+
+The renderer consumes combat events.
+
+Example events:
+
+AttackStarted
+ProjectileSpawned
+DamageApplied
+SkillCast
+HealApplied
+BuffAdded
+DebuffAdded
+CrowdControlStarted
+HeroDefeated
+UltimateStarted
+BattleEnded
+
+Rendering must NEVER determine combat outcome.
+
+======================================================================
+PHASER DECISION
+======================================================================
+
+Do NOT remove Phaser automatically.
+
+Audit its actual role.
+
+If Phaser currently powers useful non-3D systems:
+keep it.
+
+If Phaser duplicates the Three.js real-time renderer:
+design a gradual migration.
+
+Never run two heavy full-screen renderers unnecessarily.
+
+Document the final decision.
+
+======================================================================
+ORIGINAL 3D HERO SYSTEM
+======================================================================
+
+Eternal Realms contains 12 original heroes.
+
+Each hero requires:
+
+- unique silhouette
+- unique faction/role identity
+- original costume
+- original weapon
+- original face/hair design
+- optimized PBR materials
+- rig
+- attachment points
+- animation set
+
+Required animation set:
+
+Idle
+Move
+BasicAttack
+Skill
+Ultimate
+Hit
+Stun
+Knockback or relevant CC
+Victory
+Defeat
+
+Animation requirements:
+
+- smooth blending
+- minimal foot sliding
+- correct root orientation
+- weapon attachment consistency
+- animation event markers
+- reusable locomotion base where appropriate
+- hero-specific combat animation
+
+Do not claim a production-quality hero exists if it is still primitives or placeholder geometry.
+
+======================================================================
+3D ASSET PIPELINE
+======================================================================
+
+Preferred runtime format:
+
+GLB / glTF 2.0
+
+If Blender is available:
+
+Use Blender or Blender scripting for:
+
+- modeling
+- rigging
+- skinning
+- animation cleanup
+- export
+
+If Blender is not available:
+
+State the limitation.
+
+Do not fake .blend files.
+
+Use actual procedurally generated geometry only as clearly identified temporary content.
+
+Asset pipeline:
+
+SOURCE
+→ VALIDATE
+→ OPTIMIZE
+→ COMPRESS
+→ TEST
+→ PROFILE
+→ SHIP
+
+Use glTF-Transform where suitable.
+
+Evaluate:
+
+- Meshopt
+- Draco
+- KTX2 / Basis
+- texture resizing
+- texture atlases where useful
+- mesh deduplication
+- material reuse
+- animation cleanup
+
+Build scripts must be reproducible.
+
+======================================================================
+5V5 AUTO-BATTLE SYSTEM
+======================================================================
+
+Battle layout:
+
+5 heroes versus 5 heroes.
+
+Formation must preserve:
+
+Frontline
+Backline
+
+Each hero must understand:
+
+- current position
+- target
+- role
+- attack range
+- movement target
+- skill cooldown
+- energy
+- status effects
+
+Combat features:
+
+- melee attacks
+- ranged attacks
+- projectiles
+- AoE
+- healing
+- shields
+- buffs
+- debuffs
+- stun
+- knockback if appropriate
+- damage over time
+- crowd control
+- ultimate energy
+- victory
+- defeat
+
+Battle speed:
+
+1x
+2x
+optional 3x only if simulation remains stable.
+
+======================================================================
+CAMERA SYSTEM
+======================================================================
+
+Derive camera principles from the seven verified reference videos.
+
+Do not copy exact camera sequences.
+
+Implement:
+
+STANDARD BATTLE CAMERA
+Readable entire formation.
+
+FOCUS CAMERA
+Briefly emphasizes a hero during an important skill.
+
+ULTIMATE CAMERA
+Short cinematic sequence, typically under a few seconds.
+
+VICTORY CAMERA
+Controlled celebration.
+
+Camera rules:
+
+- never hide key combat information
+- do not induce excessive motion sickness
+- expose camera shake setting
+- expose cinematic intensity setting
+- allow reduced motion
+- ultimate camera can be disabled
+
+======================================================================
+VFX SYSTEM
+======================================================================
+
+Build a reusable VFX framework.
+
+Support:
+
+- mesh effects
+- billboard particles
+- GPU particles where justified
+- trails
+- beams
+- magic circles
+- decals
+- impact flashes
+- shockwaves
+- energy arcs
+- aura
+- dissolve
+- selective bloom
+- controlled distortion
+
+Every skill VFX must have phases:
+
+ANTICIPATION
+CAST
+TRAVEL
+IMPACT
+AFTERMATH
+
+VFX must reinforce gameplay information.
+
+Enemy AoE and friendly AoE must remain visually distinguishable.
+
+Do not destroy readability with excessive bloom.
+
+Implement:
+
+- VFX pooling
+- particle budgets
+- max simultaneous effect counts
+- quality scaling
+
+======================================================================
+AUDIO
+======================================================================
+
+Implement centralized audio architecture.
+
+Categories:
+
+Music
+Ambient
+Voice
+Basic Attack
+Skill
+Ultimate
+Impact
+UI
+
+Use Web Audio API or a justified compatible library.
+
+Implement:
+
+- pooling
+- preload
+- volume buses
+- mute
+- spatial audio where beneficial
+- browser autoplay handling
+- cleanup
+
+ZzFX may be used for lightweight procedural sounds or prototypes.
+
+Do not treat procedural placeholder sounds as final production audio.
+
+Do not use copyrighted music from reference games.
+
+======================================================================
+ENVIRONMENTS
+======================================================================
+
+Produce three original 3D battle arenas.
+
+ENCHANTED FOREST
+
+Features may include:
+
+- modular ruins
+- vegetation
+- magical flora
+- rocks
+- fog
+- background structures
+
+CELESTIAL TEMPLE
+
+Features may include:
+
+- elevated architecture
+- stone platforms
+- magical symbols
+- clouds
+- waterfalls
+- celestial lighting
+
+SHADOW REALM
+
+Features may include:
+
+- fractured stone
+- floating geometry
+- corrupted energy
+- dark atmosphere
+- high-contrast magical light
+
+All environments must preserve combat readability.
+
+Use:
+
+- modular geometry
+- instancing
+- LOD
+- culling
+- shared materials
+- texture compression
+
+======================================================================
+UI / UX
+======================================================================
+
+Primary language:
+
+Vietnamese.
+
+Maintain portrait-first mobile UX.
+
+Desktop must expand intelligently rather than merely stretch portrait UI.
+
+Required screens:
+
+- Home
+- Campaign
+- Hero Collection
+- Hero Detail
+- Formation
+- Battle
+- Equipment
+- Summoning
+- Settings
+
+Battle HUD should be minimal.
+
+Do not cover the 3D scene with unnecessary UI.
+
+Use learnings from verified video references only when they improve clarity.
+
+======================================================================
+PERFORMANCE ENGINEERING
+======================================================================
+
+Performance is a deliverable.
+
+Target machine:
+
+i5-12450HX
+RTX 3050 Laptop
+16 GB RAM
+1080p
+
+Create graphics presets:
+
+LOW
+MEDIUM
+HIGH
+ULTRA
+AUTO
+
+Benchmark on a representative 5v5 scene.
+
+Measure:
+
+- average FPS
+- 1% low FPS
+- main-thread frame time
+- GPU time if available
+- draw calls
+- triangles
+- geometries
+- textures
+- active skinned meshes
+- active particles
+- memory if browser APIs expose it
+
+Do NOT invent GPU timings if unavailable.
+
+Optimization priorities:
+
+1. Remove unnecessary React updates.
+2. Reduce draw calls.
+3. Instancing.
+4. Frustum culling.
+5. LOD.
+6. Texture compression.
+7. Mesh compression.
+8. Shadow optimization.
+9. Particle optimization.
+10. Transparent overdraw reduction.
+11. Resource disposal.
+12. Adaptive pixel ratio.
+
+Use object pooling for frequent transient effects.
+
+Avoid allocation inside hot loops.
+
+Do not recompute hero configuration every frame.
+
+Cache reusable vectors/quaternions.
+
+Limit shadow-casting lights.
+
+======================================================================
+VERTICAL SLICE FIRST
+======================================================================
+
+Do NOT build all 12 heroes immediately.
+
+First create a high-quality vertical slice.
+
+VERTICAL SLICE:
+
+- 2–3 finished heroes
+- 1 arena
+- one complete 5v5 scenario
+- melee hero
+- ranged hero
+- magic hero
+- basic attacks
+- skills
+- one cinematic ultimate
+- VFX
+- audio
+- battle HUD
+- camera
+- performance panel
+
+Use this phase to determine whether the chosen asset/render pipeline is viable.
+
+Only scale to 12 heroes after the vertical slice passes quality and performance tests.
+
+======================================================================
+IMPLEMENTATION PHASES
+======================================================================
+
+PHASE: REFERENCE VERIFICATION
+
+Deliver:
+
+video audit
+timestamps
+metadata
+feature matrix
+confidence ratings
+
+PASS condition:
+
+All 7 videos either have verified observations or are explicitly marked unavailable.
+
+--------------------------------------------------
+
+PHASE: REPOSITORY AUDIT
+
+Deliver:
+
+repository integration matrix
+license review
+dependency plan
+
+PASS condition:
+
+No unlicensed code or copyrighted game artwork is silently imported.
+
+--------------------------------------------------
+
+PHASE: PROJECT BASELINE
+
+Run:
+
+install
+dev server
+production build
+existing tests
+
+Record:
+
+current errors
+current performance
+working functionality
+
+Create a git checkpoint if environment supports it.
+
+--------------------------------------------------
+
+PHASE: 3D ENGINE FOUNDATION
+
+Implement:
+
+R3F / Three scene infrastructure
+camera
+lights
+asset loader
+animation controller
+performance diagnostics
+quality settings
+
+--------------------------------------------------
+
+PHASE: VERTICAL SLICE
+
+Implement:
+
+2–3 heroes
+1 environment
+playable combat
+VFX
+audio
+camera
+HUD
+
+Benchmark it.
+
+--------------------------------------------------
+
+PHASE: FULL HERO PIPELINE
+
+Expand to all 12 heroes.
+
+Maintain role diversity.
+
+Do not sacrifice animation quality simply to finish the roster.
+
+--------------------------------------------------
+
+PHASE: COMPLETE 5V5 SYSTEM
+
+Connect:
+
+formation
+combat
+progression
+campaign
+hero collection
+equipment
+save data
+
+--------------------------------------------------
+
+PHASE: ENVIRONMENT EXPANSION
+
+Complete all three arenas.
+
+--------------------------------------------------
+
+PHASE: AUDIO / VFX POLISH
+
+Replace placeholders.
+
+Refine event synchronization.
+
+--------------------------------------------------
+
+PHASE: PERFORMANCE PASS
+
+Profile real bottlenecks.
+
+Fix them based on evidence.
+
+--------------------------------------------------
+
+PHASE: QA
+
+Run automated and manual tests.
+
+======================================================================
+AUTOMATED TESTING
+======================================================================
+
+Use the project's available testing stack or add a lightweight justified test stack.
+
+Test:
+
+hero data validity
+formation rules
+combat deterministic behavior
+skill cooldowns
+energy
+damage
+healing
+status effects
+save migration
+load/save
+graphics preset state
+
+Use browser integration tests for:
+
+home → hero
+hero → formation
+formation → battle
+battle → result
+save → reload
+
+Check console for:
+
+errors
+warnings
+WebGL context issues
+missing assets
+audio errors
+
+Production build MUST pass before a phase is marked PASS.
+
+======================================================================
+VISUAL QA
+======================================================================
+
+Where browser screenshots or visual tools are available:
+
+Capture:
+
+hero detail
+formation
+normal battle
+ultimate
+victory
+each environment
+
+Inspect:
+
+- clipping
+- z-fighting
+- broken normals
+- animation snapping
+- incorrect shadows
+- texture errors
+- particle artifacts
+- UI overlap
+- camera clipping
+
+Iterate:
+
+IMPLEMENT
+→ RUN
+→ INSPECT
+→ CRITIQUE
+→ FIX
+→ RE-RUN
+
+Do not stop after the first visible result.
+
+======================================================================
+COPYRIGHT AND ORIGINALITY
+======================================================================
+
+REFERENCE GAMES ARE INSPIRATION ONLY.
+
+Do NOT copy:
+
+- character designs
+- character names
+- logos
+- proprietary art
+- exact environments
+- ripped models
+- ripped animations
+- music
+- voice acting
+- exact proprietary skill effects
+- exact proprietary UI artwork
+
+Recreate ideas at the system/design level.
+
+Examples:
+
+Allowed concept:
+short cinematic camera on ultimate.
+
+Not allowed:
+reproducing another game's exact ultimate animation, camera path, character and effect assets.
+
+Allowed concept:
+2-front / 3-back formation.
+
+Not allowed:
+copying proprietary interface art or protected character imagery.
+
+======================================================================
+STRICT TRUTHFULNESS RULE
+======================================================================
+
+Never write:
+
+"Video analyzed"
+unless video/frame/transcript was actually accessible.
+
+Never write:
+
+"60 FPS achieved"
+unless FPS was actually measured.
+
+Never write:
+
+"Model completed"
+unless the model exists and loads.
+
+Never write:
+
+"Audio implemented"
+if the feature is silent.
+
+Never write:
+
+"All tests pass"
+unless tests were actually executed.
+
+Never fabricate files, screenshots, metrics or repository results.
+
+======================================================================
+REQUIRED PHASE REPORT
+======================================================================
+
+At the end of each phase output:
+
+PHASE
+
+STATUS
+PASS / PARTIAL / BLOCKED
+
+EVIDENCE
+
+IMPLEMENTED
+
+FILES CHANGED
+
+REPOSITORIES USED
+
+LICENSE STATUS
+
+ASSETS CREATED
+
+TEST COMMANDS
+
+TEST RESULTS
+
+PERFORMANCE RESULTS
+
+VISUAL QA RESULTS
+
+BLOCKERS
+
+NEXT ACTION
+
+======================================================================
+ACCEPTANCE CRITERIA
+======================================================================
+
+Eternal Realms is not considered complete until:
+
+- 7 reference videos have evidence-based audits or clearly documented access failures.
+- All 4 mandatory repositories have been inspected.
+- License status is documented.
+- Current game systems remain functional.
+- 12 original heroes have real 3D representation.
+- Heroes are rigged and animated.
+- 5v5 combat works in real 3D.
+- Formation works.
+- Campaign works.
+- Progression works.
+- Equipment works.
+- Save/load works.
+- Skills synchronize gameplay, animation, VFX and sound.
+- 3 original environments exist.
+- Graphics presets work.
+- Vietnamese UI works.
+- Mobile portrait remains supported.
+- Desktop responsive layout works.
+- Production build passes.
+- Automated tests pass or failures are explicitly documented.
+- Performance is measured.
+- No benchmark numbers are fabricated.
+- No copyrighted reference-game asset is silently shipped.
+
+======================================================================
+FINAL EXECUTION ORDER
+======================================================================
+
+START NOW.
+
+Do not begin by writing a long speculative design document.
+
+Perform these actions in order:
+
+1. Open and audit the existing Eternal Realms project.
+2. Attempt to inspect all seven reference videos.
+3. Create the evidence-based reference-video audit.
+4. Inspect the four mandatory GitHub repositories.
+5. Verify licenses.
+6. Audit supplementary repositories.
+7. Establish a working baseline build.
+8. Create the repository integration matrix.
+9. Implement the 3D engine foundation.
+10. Build the first production-quality vertical slice.
+11. Measure it.
+12. Improve it until acceptable.
+13. Scale the validated pipeline to the full game.
+
+When the environment allows direct code modification, modify real project files.
+
+When a required capability is unavailable, report it precisely and continue with all feasible work.
+
+Your objective is not to impress with claims.
+
+Your objective is to leave behind a genuinely improved, playable, measurable, original 3D game.

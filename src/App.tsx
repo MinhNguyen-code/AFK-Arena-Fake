@@ -1,41 +1,23 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Swords,
-  Users,
-  Layers,
-  Map,
-  Sparkles,
-  Home,
-  Zap,
-  Pause,
-  Play,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Gift,
-  Film,
   Smartphone,
-  Monitor,
-  Trophy,
-  Shield,
-  Plus,
-  Crown,
-  Flame,
-  ScrollText,
   X,
 } from 'lucide-react';
-import { useGameStore, AppScreen, BattleRewardSummary } from './store/gameStore';
 import {
-  getHeroById,
-  computeTeamPower,
-  HERO_ROSTER,
-  REPO_FACTION_METADATA,
-  computeFactionAura,
-} from './game/heroes';
+  IconNavRanhorn,
+  IconNavDarkForest,
+  IconNavCampaign,
+  IconNavBattle,
+  IconNavHeroes,
+  IconNavFormation,
+  IconNavTavern,
+} from './components/FantasyIcons';
+import { useGameStore, AppScreen, BattleRewardSummary } from './store/gameStore';
+import { getHeroById, computeTeamPower } from './game/heroes';
 import { getCampaignStage, CAMPAIGN_STAGES } from './game/campaign';
 import { BattleSnapshot } from './game/types';
-import { PhaserBattleCanvas } from './components/PhaserBattleCanvas';
-import { HeroAvatarSvg } from './components/HeroAvatarSvg';
+import { ThreeBattleCanvas } from './components/ThreeBattleCanvas';
+import { ArenaEnvironmentId, GraphicsPreset } from './game/threeBattleScene';
 import { TitleScreen } from './components/TitleScreen';
 import {
   LobbyPanel,
@@ -46,7 +28,31 @@ import {
   VideosAndBossesPanel,
   BattleResultsModal,
 } from './components/Screens';
+import {
+  ClassicBagModal,
+  ClassicGuildModal,
+  ClassicQuestsModal,
+  ClassicEventsModal,
+  ClassicMailModal,
+  ClassicSettingsModal,
+  RedNotificationDot,
+  MobileFrame,
+  AppShell,
+  TopHUD,
+  BattleHUD,
+  BattleField,
+  HeroUltimateBar,
+} from './components/ClassicUiKit';
 import { soundEngine } from './game/audio';
+
+export type ClassicSystemModalType =
+  | null
+  | 'bag'
+  | 'guild'
+  | 'quests'
+  | 'events'
+  | 'mail'
+  | 'settings';
 
 export default function App() {
   const initialShellState = useMemo<'title' | 'playing'>(() => {
@@ -65,6 +71,8 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [bluestacksFrameMode, setBluestacksFrameMode] = useState<boolean>(true);
   const [showAdbModal, setShowAdbModal] = useState<boolean>(false);
+  const [activeSystemModal, setActiveSystemModal] =
+    useState<ClassicSystemModalType>(null);
   const [liveSnapshot, setLiveSnapshot] = useState<BattleSnapshot | null>(null);
   const [lastRewardSummary, setLastRewardSummary] =
     useState<BattleRewardSummary | null>(null);
@@ -73,18 +81,16 @@ export default function App() {
     force: boolean;
     seq: number;
   } | null>(null);
+  const [graphicsPreset, setGraphicsPreset] = useState<GraphicsPreset>('AUTO');
+  const [arenaOverride, setArenaOverride] = useState<'auto' | ArenaEnvironmentId>('auto');
+  const [cameraShakeEnabled, setCameraShakeEnabled] = useState<boolean>(true);
+  const [ultimateCameraEnabled, setUltimateCameraEnabled] = useState<boolean>(true);
+  const [reducedMotion, setReducedMotion] = useState<boolean>(false);
+  const [showPerfOverlay, setShowPerfOverlay] = useState<boolean>(false);
 
   const store = useGameStore();
   const currentStage = getCampaignStage(store.currentStageId);
   const teamPower = computeTeamPower(store.formation, store.ownedHeroes);
-  const allyAura = useMemo(
-    () => computeFactionAura(store.formation),
-    [store.formation]
-  );
-  const enemyAura = useMemo(
-    () => computeFactionAura(currentStage.enemies.map((e) => e.heroId)),
-    [currentStage]
-  );
   const idleMinutes = Math.max(1, Math.floor(store.idleAccumulatedSeconds / 60));
 
   // Sync document.body.dataset.state
@@ -182,7 +188,9 @@ export default function App() {
 
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
-        if (store.activeScreen !== 'battle') {
+        if (activeSystemModal) {
+          setActiveSystemModal(null);
+        } else if (store.activeScreen !== 'battle') {
           store.setActiveScreen('battle');
         } else {
           setShellState((s) => (s === 'paused' ? 'playing' : 'paused'));
@@ -221,20 +229,11 @@ export default function App() {
     shellState,
     store,
     lastRewardSummary,
+    activeSystemModal,
     handleStartFromTitle,
     handleNextStageBattle,
     handleRetryBattle,
   ]);
-
-  // Compute enemy team remaining HP %
-  const enemyHpPct = useMemo(() => {
-    if (!liveSnapshot) return 100;
-    const enemies = liveSnapshot.units.filter((u) => u.team === 'enemy');
-    if (enemies.length === 0) return 0;
-    const cur = enemies.reduce((sum, u) => sum + u.hp, 0);
-    const max = enemies.reduce((sum, u) => sum + u.maxHp, 0);
-    return max > 0 ? Math.round((cur / max) * 100) : 0;
-  }, [liveSnapshot]);
 
   const remainingSec = useMemo(() => {
     if (!liveSnapshot) return 90;
@@ -251,36 +250,15 @@ export default function App() {
   }, [remainingSec]);
 
   const isSimulationPaused =
-    shellState !== 'playing' || store.activeScreen !== 'battle';
+    shellState !== 'playing' ||
+    store.activeScreen !== 'battle' ||
+    activeSystemModal !== null;
 
   const leaderHero = getHeroById(store.formation[0] || 'celestial_guardian');
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-[#120b06] text-amber-50 select-none flex items-center justify-center">
-      {/* OUTER BLUESTACKS / MOBILE PORTRAIT CONTAINER (468px logical mobile artboard centered on desktop) */}
-      <div
-        className={`relative h-full flex flex-col justify-between overflow-hidden transition-all duration-300 ${
-          bluestacksFrameMode
-            ? 'w-full max-w-[468px] border-x-[3px] border-[#b8893e] shadow-[0_0_90px_rgba(0,0,0,0.98)] bg-[#1c1209]'
-            : 'w-full'
-        }`}
-      >
-        {/* FULL-VIEWPORT PHASER 2.5D BATTLE SCENE */}
-        <div className="fixed inset-0 z-0">
-          <PhaserBattleCanvas
-            stageId={store.currentStageId}
-            battleInstanceKey={store.battleInstanceKey}
-            formation={store.formation}
-            ownedHeroes={store.ownedHeroes}
-            battleSpeed={store.battleSpeed}
-            autoUltimate={store.autoUltimate}
-            isPaused={isSimulationPaused}
-            manualUltimateRequest={manualUltimateRequest}
-            onSnapshotUpdate={setLiveSnapshot}
-            onBattleFinished={handleBattleFinished}
-          />
-        </div>
-
+    <MobileFrame portraitMode={bluestacksFrameMode}>
+      <AppShell>
         {/* STATE 1: TITLE SCREEN */}
         {shellState === 'title' && (
           <TitleScreen
@@ -290,223 +268,126 @@ export default function App() {
           />
         )}
 
-        {/* STATE 2: AUTHENTIC AFK ARENA: COMPANIONS IN-GAME SHELL */}
+        {/* STATE 2: CLASSIC AFK ARENA IN-GAME SHELL */}
         {shellState !== 'title' && (
           <>
-            {/* TOP COMPACT HUD BAR (Matching 01_hero_reveal_dracula.jpg & 18_roster_late.jpg) */}
-            <header className="relative z-30 pointer-events-auto bg-gradient-to-b from-[#332010] via-[#24160b] to-[#180e07] border-b-2 border-[#a87e3b] px-2 py-1 shadow-[0_4px_16px_rgba(0,0,0,0.85)] flex flex-wrap items-center justify-between gap-1">
-              {/* Left: Circular Bronze Player Avatar + Level + Golden Fist Power */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => store.setActiveScreen('lobby')}
-                  className="relative shrink-0 cursor-pointer rounded-full p-0.5 bg-gradient-to-b from-[#f5d061] to-[#8c6223] shadow"
-                  title="Hồ Sơ Lãnh Chúa Esperia"
-                >
-                  <div className="rounded-full overflow-hidden border border-[#2b1b0e]">
-                    <HeroAvatarSvg hero={leaderHero} size="sm" />
-                  </div>
-                </button>
+            {/* 2-ROW TOP HUD (Player Info + Uniform Utility Icons + 4-Col ResourceBar) */}
+            <TopHUD
+              leaderHero={leaderHero}
+              teamPower={teamPower}
+              gold={store.gold}
+              heroExp={store.heroExp}
+              essenceGems={store.essenceGems}
+              summonScrolls={store.summonScrolls}
+              isMuted={isMuted}
+              portraitMode={bluestacksFrameMode}
+              onClaimGold={() => store.claimIdleTribute()}
+              onClaimGems={() => store.claimFreeSanctumGift()}
+              onToggleMute={() => setIsMuted(soundEngine.toggleMute())}
+              onTogglePortraitMode={() => setBluestacksFrameMode((v) => !v)}
+              onOpenAdbModal={() => setShowAdbModal(true)}
+              onOpenSystemModal={(m) => setActiveSystemModal(m)}
+            />
 
-                <div className="leading-tight">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[11px] font-extrabold text-[#fff3d1] truncate max-w-[85px]">
-                      Tân Thủ
-                    </span>
-                    <span className="px-1 py-0.2 rounded bg-gradient-to-r from-[#f5d061] to-[#c69d53] text-[#241508] font-mono text-[8px] font-black flex items-center gap-0.5">
-                      <Crown className="w-2 h-2 fill-current" /> VIP12
-                    </span>
-                  </div>
-
-                  {/* Golden Fist Combat Rating + Stage Timer */}
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="inline-flex items-center gap-0.5">
-                      <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-b from-[#fde047] to-[#b45309] text-[#1e1209] flex items-center justify-center text-[8px] font-black">
-                        ✊
-                      </span>
-                      <span
-                        data-testid="hud-team-power"
-                        className="text-[11px] font-mono font-black text-[#fde047] tabular-nums"
-                      >
-                        {teamPower.toLocaleString()}
-                      </span>
-                    </span>
-                    <span
-                      data-testid="hud-battle-timer"
-                      className="px-1 rounded bg-[#0f0904] border border-[#7c582b] font-mono text-[9px] text-[#fde047] tabular-nums"
-                    >
-                      {currentStage.chapter} · {formattedTimer}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right: Compact Currency Pills (Gold, EXP, Diamonds, Scrolls) & Frame Controls */}
-              <div className="flex flex-wrap items-center justify-end gap-1">
-                {/* Gold Pill */}
-                <div className="flex items-center gap-1 bg-[#160d06] border border-[#7c582b] rounded-full pl-1.5 pr-0.5 py-0.5 font-mono tabular-nums">
-                  <span className="w-3.5 h-3.5 rounded-full bg-gradient-to-b from-[#fde047] to-[#b45309] flex items-center justify-center text-[8px] font-black text-[#241508]">
-                    G
-                  </span>
-                  <span
-                    data-testid="hud-gold"
-                    className="text-[10px] font-extrabold text-[#fff1c2]"
-                  >
-                    {store.gold >= 10000
-                      ? `${Math.floor(store.gold / 1000)}K`
-                      : store.gold.toLocaleString()}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => store.claimIdleTribute()}
-                    title="Thu hoạch nhanh Vàng AFK"
-                    className="w-3.5 h-3.5 rounded-full bg-gradient-to-b from-[#e5b85c] to-[#966822] text-[#1e1209] flex items-center justify-center cursor-pointer"
-                  >
-                    <Plus className="w-2.5 h-2.5 stroke-[3]" />
-                  </button>
-                </div>
-
-                {/* Hero EXP (always in DOM for testid) */}
-                <div className="hidden sm:flex items-center gap-1 bg-[#160d06] border border-[#7c582b] rounded-full px-1.5 py-0.5 font-mono tabular-nums">
-                  <span className="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block" />
-                  <span
-                    data-testid="hud-exp"
-                    className="text-[10px] font-extrabold text-sky-200"
-                  >
-                    {store.heroExp >= 10000
-                      ? `${Math.floor(store.heroExp / 1000)}K`
-                      : store.heroExp.toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Diamonds Pill */}
-                <div className="flex items-center gap-1 bg-[#160d06] border border-[#7c582b] rounded-full pl-1.5 pr-0.5 py-0.5 font-mono tabular-nums">
-                  <span className="w-2.5 h-2.5 rotate-45 bg-gradient-to-br from-white via-sky-200 to-cyan-400 inline-block" />
-                  <span
-                    data-testid="hud-gems"
-                    className="text-[10px] font-extrabold text-[#fff1c2]"
-                  >
-                    {store.essenceGems.toLocaleString()}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => store.claimFreeSanctumGift()}
-                    title="Nhận Kim Cương & Cuộn Triệu Hồi"
-                    className="w-3.5 h-3.5 rounded-full bg-gradient-to-b from-[#e5b85c] to-[#966822] text-[#1e1209] flex items-center justify-center cursor-pointer"
-                  >
-                    <Plus className="w-2.5 h-2.5 stroke-[3]" />
-                  </button>
-                </div>
-
-                {/* Scrolls Pill */}
-                <div className="flex items-center gap-0.5 bg-[#160d06] border border-[#7c582b] rounded-full px-1.5 py-0.5 font-mono tabular-nums">
-                  <ScrollText className="w-3 h-3 text-amber-300" />
-                  <span
-                    data-testid="hud-scrolls"
-                    className="text-[10px] font-extrabold text-amber-200"
-                  >
-                    {store.summonScrolls}
-                  </span>
-                </div>
-
-                {/* Mobile Portrait / Widescreen Toggle */}
-                <button
-                  type="button"
-                  data-testid="hud-bluestacks-mode-btn"
-                  onClick={() => setBluestacksFrameMode((v) => !v)}
-                  title="Chuyển đổi Khung Dọc Mobile 9:16 / Widescreen"
-                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[9px] font-bold cursor-pointer ${
-                    bluestacksFrameMode
-                      ? 'bg-[#d4af37] text-[#1e1209] border-amber-200'
-                      : 'bg-[#26170b] text-[#f3d38c] border-[#8c6430]'
-                  }`}
-                >
-                  {bluestacksFrameMode ? (
-                    <Smartphone className="w-3 h-3" />
-                  ) : (
-                    <Monitor className="w-3 h-3" />
-                  )}
-                  <span>{bluestacksFrameMode ? '9:16' : 'Wide'}</span>
-                </button>
-
-                {/* ADB Info */}
-                <button
-                  type="button"
-                  data-testid="hud-adb-bridge-btn"
-                  onClick={() => setShowAdbModal(true)}
-                  className="px-1.5 py-0.5 rounded bg-[#26170b] border border-[#8c6430] text-[9px] font-mono font-bold text-amber-300 cursor-pointer"
-                >
-                  ADB
-                </button>
-
-                {/* Mute */}
-                <button
-                  type="button"
-                  aria-label={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
-                  onClick={(e) => {
-                    e.currentTarget.blur();
-                    setIsMuted(soundEngine.toggleMute());
-                  }}
-                  className="p-1 rounded bg-[#26170b] border border-[#8c6430] text-amber-200 cursor-pointer"
-                >
-                  {isMuted ? (
-                    <VolumeX className="w-3 h-3 text-rose-400" />
-                  ) : (
-                    <Volume2 className="w-3 h-3 text-amber-300" />
-                  )}
-                </button>
-
-                {/* Restart Stage */}
-                <button
-                  type="button"
-                  data-testid="hud-restart-btn"
-                  aria-label="Đánh lại màn"
-                  onClick={(e) => {
-                    e.currentTarget.blur();
-                    handleRetryBattle();
-                  }}
-                  className="p-1 rounded bg-[#26170b] border border-[#8c6430] text-amber-200 cursor-pointer"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                </button>
-
-                {/* Pause Battle */}
-                <button
-                  type="button"
-                  data-testid="hud-pause-btn"
-                  aria-label="Tạm dừng"
-                  onClick={(e) => {
-                    e.currentTarget.blur();
-                    setShellState((s) => (s === 'paused' ? 'playing' : 'paused'));
-                  }}
-                  className="p-1 rounded bg-[#26170b] border border-[#8c6430] text-amber-200 cursor-pointer"
-                >
-                  {shellState === 'paused' ? (
-                    <Play className="w-3 h-3 text-emerald-400" />
-                  ) : (
-                    <Pause className="w-3 h-3" />
-                  )}
-                </button>
-              </div>
-            </header>
-
-            {/* CENTER ACTIVE SCREEN AREA */}
-            <div className="relative z-20 flex-1 min-h-0 flex flex-col items-center justify-start overflow-hidden pointer-events-none w-full">
+            {/* MIDDLE FLEXIBLE PORTRAIT VIEWPORT */}
+            <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
               {store.toastMessage && (
                 <div
                   role="status"
                   data-testid="toast-banner"
-                  className="pointer-events-auto absolute top-1.5 inset-x-3 px-3 py-1 rounded-full bg-gradient-to-r from-[#3d2614] via-[#59381e] to-[#3d2614] border-2 border-[#fde047] text-[#fff4d4] text-[11px] font-extrabold text-center shadow-2xl z-50"
+                  className="pointer-events-auto absolute top-2 inset-x-3 px-3 py-1 rounded-full bg-gradient-to-r from-[#3d2614] via-[#59381e] to-[#3d2614] border-2 border-[#fde047] text-[#fff4d4] text-[11px] font-extrabold text-center shadow-2xl z-50 truncate"
                 >
                   {store.toastMessage}
                 </div>
               )}
 
+              {/* VERTICAL MOBILE PORTRAIT BATTLE LAYOUT (3 ZONES: BattleHUD -> BattleField -> HeroUltimateBar) */}
+              <div
+                className={`w-full h-full flex flex-col justify-between overflow-hidden ${
+                  store.activeScreen === 'battle' ? 'flex' : 'hidden'
+                }`}
+              >
+                {/* ZONE 1: BattleHUD (Stage Name, Timer, Auto, x2, Restart, Pause) */}
+                <BattleHUD
+                  chapter={currentStage.chapter}
+                  stageName={currentStage.name}
+                  formattedTimer={formattedTimer}
+                  battleSpeed={store.battleSpeed}
+                  autoUltimate={store.autoUltimate}
+                  isPaused={shellState === 'paused'}
+                  onToggleSpeed={() => store.toggleBattleSpeed()}
+                  onToggleAuto={() => store.toggleAutoUltimate()}
+                  onRestart={handleRetryBattle}
+                  onTogglePause={() =>
+                    setShellState((s) => (s === 'paused' ? 'playing' : 'paused'))
+                  }
+                  onOpenCampaign={() => store.setActiveScreen('campaign')}
+                />
+
+                {/* ZONE 2: BattleField (Portrait 3D Arena — Allies Left vs Enemies Right) */}
+                <BattleField>
+                  {store.activeScreen === 'battle' && (
+                    <ThreeBattleCanvas
+                      stageId={store.currentStageId}
+                      battleInstanceKey={store.battleInstanceKey}
+                      formation={store.formation}
+                      ownedHeroes={store.ownedHeroes}
+                      battleSpeed={store.battleSpeed}
+                      autoUltimate={store.autoUltimate}
+                      isPaused={isSimulationPaused}
+                      manualUltimateRequest={manualUltimateRequest}
+                      graphicsPreset={graphicsPreset}
+                      arenaOverride={arenaOverride}
+                      cameraShakeEnabled={cameraShakeEnabled}
+                      ultimateCameraEnabled={ultimateCameraEnabled}
+                      reducedMotion={reducedMotion}
+                      showPerfOverlay={showPerfOverlay}
+                      onSnapshotUpdate={setLiveSnapshot}
+                      onBattleFinished={handleBattleFinished}
+                    />
+                  )}
+                </BattleField>
+
+                {/* ZONE 3: HeroUltimateBar (Combo Ult / AFK Chest / Level Up + 5 Arched Hero Cards) */}
+                <HeroUltimateBar
+                  formation={store.formation}
+                  ownedHeroes={store.ownedHeroes}
+                  liveSnapshot={liveSnapshot}
+                  idleMinutes={idleMinutes}
+                  onTriggerComboUlt={() => {
+                    setShellState('playing');
+                    store.setActiveScreen('battle');
+                    setManualUltimateRequest({
+                      heroId: '__ALL__',
+                      force: true,
+                      seq: Date.now(),
+                    });
+                  }}
+                  onClaimIdle={() => store.claimIdleTribute()}
+                  onAutoUpgrade={() => store.autoUpgradeSquad()}
+                  onTriggerHeroUlt={(heroId) => {
+                    setShellState('playing');
+                    store.setActiveScreen('battle');
+                    setManualUltimateRequest({
+                      heroId,
+                      force: true,
+                      seq: Date.now(),
+                    });
+                  }}
+                  onOpenFormation={() => {
+                    setShellState('playing');
+                    store.setActiveScreen('formation');
+                  }}
+                />
+              </div>
+
+              {/* NON-BATTLE ACTIVE SCREENS (Portrait-First Full Height Scrollable Panels) */}
               {store.activeScreen !== 'battle' && (
-                <div className="pointer-events-auto w-full h-full min-h-0 flex flex-col overflow-y-auto">
+                <div className="pointer-events-auto w-full h-full min-h-0 flex flex-col overflow-y-auto bg-[#1c1209]">
                   {store.activeScreen === 'lobby' && (
                     <LobbyPanel
                       onCloseToBattle={() => store.setActiveScreen('battle')}
+                      onOpenSystemModal={(m) => setActiveSystemModal(m)}
                     />
                   )}
                   {store.activeScreen === 'formation' && (
@@ -540,363 +421,307 @@ export default function App() {
               )}
             </div>
 
-            {/* BOTTOM AFK ARENA: COMPANIONS HUD & CARVED NAVIGATION DOCK (Exact match to 18_roster_late.jpg) */}
-            <footer className="relative z-50 pointer-events-none flex flex-col items-center w-full shrink-0">
-              {/* Row 1: IN-BATTLE 5 ARCHED HERO PORTRAIT CARDS + PAUSE / AUTO / x2 */}
-              {store.activeScreen === 'battle' && (
-                <div className="pointer-events-auto w-full px-2 pb-1.5 flex flex-col gap-1.5">
-                  {/* Top Control Strip above Arched Cards */}
-                  <div className="flex flex-wrap items-center justify-between gap-1">
-                    <div className="flex items-center gap-1">
+            {/* CLASSIC AFK ARENA BOTTOM NAVIGATION DOCK — CARVED BRONZE & GOLD RPG MENU BAR */}
+            <footer
+              data-testid="classic-bottom-nav"
+              className="relative z-40 pointer-events-auto w-full shrink-0"
+            >
+              <nav
+                aria-label="Thanh điều hướng chính AFK Arena Classic"
+                className="w-full bg-gradient-to-b from-[#3e2513] via-[#27170b] to-[#140b05] border-t-2 border-[#d9a84e] shadow-[inset_0_1px_0_#fef08a,0_-8px_24px_rgba(0,0,0,0.95)]"
+              >
+                <div className="grid grid-cols-7 divide-x divide-[#52341a]/75 items-stretch h-[58px]">
+                  {/* Tab 1: Ranhorn (Main City Hub) */}
+                  {(() => {
+                    const isActive = store.activeScreen === 'lobby';
+                    return (
                       <button
                         type="button"
-                        data-testid="btn-combo-ultimates"
+                        data-testid="nav-btn-lobby"
+                        onClick={() => {
+                          setShellState('playing');
+                          store.setActiveScreen(isActive ? 'battle' : 'lobby');
+                        }}
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.55),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#331e0f]/75 via-[#221309]/90 to-[#140a04] hover:from-[#432814]/85'
+                        }`}
+                      >
+                        <RedNotificationDot className="absolute top-0.5 right-1 z-20" />
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavRanhorn
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.65)]'
+                                : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#d2b483] group-hover:text-[#fbe5be] [text-shadow:0_1px_2px_#000000]'
+                          }`}
+                        >
+                          Ranhorn
+                        </span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* Tab 2: Dark Forest */}
+                  {(() => {
+                    const isActive = store.activeScreen === 'videos';
+                    return (
+                      <button
+                        type="button"
+                        data-testid="nav-btn-videos"
+                        onClick={() => {
+                          setShellState('playing');
+                          store.setActiveScreen(isActive ? 'battle' : 'videos');
+                        }}
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.55),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#331e0f]/75 via-[#221309]/90 to-[#140a04] hover:from-[#432814]/85'
+                        }`}
+                      >
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavDarkForest
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.65)]'
+                                : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#d2b483] group-hover:text-[#fbe5be] [text-shadow:0_1px_2px_#000000]'
+                          }`}
+                        >
+                          Rừng Đen
+                        </span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* Tab 3: Campaign */}
+                  {(() => {
+                    const isActive = store.activeScreen === 'campaign';
+                    return (
+                      <button
+                        type="button"
+                        data-testid="nav-btn-campaign"
+                        onClick={() => {
+                          setShellState('playing');
+                          store.setActiveScreen(
+                            isActive ? 'battle' : 'campaign'
+                          );
+                        }}
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.55),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#331e0f]/75 via-[#221309]/90 to-[#140a04] hover:from-[#432814]/85'
+                        }`}
+                      >
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavCampaign
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.65)]'
+                                : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#d2b483] group-hover:text-[#fbe5be] [text-shadow:0_1px_2px_#000000]'
+                          }`}
+                        >
+                          Campaign
+                        </span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* Tab 4: Battle (Center Highlighted Crest) */}
+                  {(() => {
+                    const isActive = store.activeScreen === 'battle';
+                    return (
+                      <button
+                        type="button"
+                        data-testid="nav-btn-battle"
                         onClick={() => {
                           setShellState('playing');
                           store.setActiveScreen('battle');
-                          setManualUltimateRequest({
-                            heroId: '__ALL__',
-                            force: true,
-                            seq: Date.now(),
-                          });
                         }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-b from-[#52351b] to-[#2b1a0c] border border-[#d4af37] text-[#fde047] font-extrabold text-[10px] cursor-pointer shadow"
-                      >
-                        <Sparkles className="w-3 h-3 text-amber-300" />
-                        <span>Combo Ult</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        data-testid="hud-claim-idle-btn"
-                        onClick={() => store.claimIdleTribute()}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-b from-[#fde047] via-[#e2af34] to-[#9a6b19] text-[#1e1209] font-black text-[10px] cursor-pointer shadow"
-                      >
-                        <Gift className="w-3 h-3" />
-                        <span>Rương AFK ({idleMinutes}p)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        data-testid="btn-auto-upgrade-all"
-                        onClick={() => store.autoUpgradeSquad()}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-b from-[#67e8f9] via-[#22d3ee] to-[#0284c7] text-[#041019] font-black text-[10px] cursor-pointer shadow"
-                      >
-                        <Zap className="w-3 h-3 fill-current" />
-                        <span>Nâng Nhanh</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        data-testid="toggle-auto-ult-btn"
-                        onClick={() => store.toggleAutoUltimate()}
-                        className={`px-2.5 py-1 rounded-full border font-mono text-[10px] font-black cursor-pointer shadow ${
-                          store.autoUltimate
-                            ? 'bg-gradient-to-b from-[#f5d061] to-[#7c5821] text-[#1e1209] border-[#fef08a]'
-                            : 'bg-[#2a190c] text-[#d6be96] border-[#8c6430]'
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.65),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#3d2412]/85 via-[#28160a]/95 to-[#160b04] hover:from-[#4c2e17]'
                         }`}
                       >
-                        AUTO: {store.autoUltimate ? 'ON' : 'OFF'}
-                      </button>
-
-                      <button
-                        type="button"
-                        data-testid="toggle-speed-btn"
-                        onClick={() => store.toggleBattleSpeed()}
-                        className={`px-2 py-1 rounded-full border font-mono text-[10px] font-black cursor-pointer shadow ${
-                          store.battleSpeed === 2
-                            ? 'bg-gradient-to-b from-[#f5d061] to-[#7c5821] text-[#1e1209] border-[#fef08a]'
-                            : 'bg-[#2a190c] text-[#fde047] border-[#8c6430]'
-                        }`}
-                      >
-                        x{store.battleSpeed}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 5 ARCHED HERO BATTLE CARDS */}
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {store.formation.map((heroId, idx) => {
-                      if (!heroId) {
-                        return (
-                          <button
-                            key={`empty_${idx}`}
-                            type="button"
-                            onClick={() => {
-                              setShellState('playing');
-                              store.setActiveScreen('formation');
-                            }}
-                            className="h-[88px] rounded-t-[20px] rounded-b-lg bg-[#1d1209]/90 border-2 border-dashed border-[#a87e3b] text-[9px] font-bold text-[#e5c483] flex items-center justify-center cursor-pointer"
-                          >
-                            + Ô #{idx + 1}
-                          </button>
-                        );
-                      }
-
-                      const hero = getHeroById(heroId);
-                      const owned = store.ownedHeroes[heroId];
-                      const liveUnit = liveSnapshot?.units.find(
-                        (u) => u.team === 'ally' && u.heroId === heroId
-                      );
-                      const hpPct =
-                        liveUnit && liveUnit.maxHp > 0
-                          ? Math.max(
-                              0,
-                              Math.min(
-                                100,
-                                Math.round((liveUnit.hp / liveUnit.maxHp) * 100)
-                              )
-                            )
-                          : 100;
-                      const energy = liveUnit
-                        ? Math.min(100, Math.floor(liveUnit.energy))
-                        : 0;
-                      const isAlive = liveUnit ? liveUnit.isAlive : true;
-                      const isReady = isAlive && energy >= 100;
-                      const facMeta =
-                        hero.repoFaction &&
-                        REPO_FACTION_METADATA[hero.repoFaction];
-
-                      return (
-                        <button
-                          key={`${hero.id}_${idx}`}
-                          type="button"
-                          data-testid={`ult-card-${hero.id}`}
-                          onClick={() => {
-                            setShellState('playing');
-                            store.setActiveScreen('battle');
-                            setManualUltimateRequest({
-                              heroId: hero.id,
-                              force: true,
-                              seq: Date.now(),
-                            });
-                          }}
-                          className={`group relative rounded-t-[20px] rounded-b-lg p-1 border-2 transition-all cursor-pointer flex flex-col items-center shadow-xl ${
-                            !isAlive
-                              ? 'bg-[#1a1310] border-stone-700 grayscale opacity-55'
-                              : isReady
-                                ? 'bg-gradient-to-b from-[#6b3fa0] via-[#43236b] to-[#24113d] border-[#fde047] shadow-[0_0_16px_rgba(253,224,71,0.85)] -translate-y-1'
-                                : 'bg-gradient-to-b from-[#553182] via-[#341c54] to-[#1b0e2e] border-[#c89b4b] hover:border-[#fde047]'
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavBattle
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.75)]'
+                                : 'opacity-95 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-black leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#e5c687] group-hover:text-[#fff3d1] [text-shadow:0_1px_2px_#000000]'
                           }`}
                         >
-                          <div className="relative w-full flex flex-col items-center">
-                            <HeroAvatarSvg
-                              hero={hero}
-                              size="sm"
-                              variant="framed"
-                            />
-                            {facMeta && (
-                              <img
-                                src={facMeta.icon}
-                                alt={facMeta.label}
-                                className="w-3.5 h-3.5 rounded-full bg-[#1a1109] border border-[#d4af37] absolute top-0 left-0 object-contain"
-                              />
-                            )}
-                            <span className="absolute top-0 right-0 px-0.5 rounded bg-[#1a1109]/90 text-[8px] font-mono font-bold text-[#fde047]">
-                              {owned?.level ?? 1}级
-                            </span>
-                          </div>
+                          Chiến Đấu
+                        </span>
+                      </button>
+                    );
+                  })()}
 
-                          {/* HP Bar */}
-                          <div className="w-full h-1.5 bg-[#140b06] border border-[#3d2514] rounded-sm overflow-hidden mt-1">
-                            <div
-                              className="h-full bg-gradient-to-r from-[#22c55e] to-[#86efac]"
-                              style={{ width: `${hpPct}%` }}
-                            />
-                          </div>
-
-                          {/* Energy Bar */}
-                          <div className="w-full h-1.5 bg-[#140b06] border border-[#3d2514] rounded-sm overflow-hidden mt-0.5">
-                            <div
-                              className="h-full bg-gradient-to-r from-[#d97706] to-[#fde047]"
-                              style={{ width: `${energy}%` }}
-                            />
-                          </div>
-
-                          <div className="w-full text-center text-[9px] font-extrabold text-[#fff2d1] truncate mt-0.5">
-                            {isReady ? '★ ULT!' : hero.name.split(' ')[0]}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Row 2: AUTHENTIC AFK ARENA: COMPANIONS BOTTOM DOCK (Matching 18_roster_late.jpg: 领地 | 野外 | 战役 | 英雄 | 编队 | 酒馆) */}
-              <nav
-                aria-label="Thanh điều hướng chính AFK Arena: Companions"
-                className="pointer-events-auto w-full bg-gradient-to-b from-[#2c1c11] via-[#1f130b] to-[#120a05] border-t-2 border-[#b8893e] px-1.5 py-1 shadow-[0_-8px_24px_rgba(0,0,0,0.95)]"
-              >
-                <div className="max-w-[1060px] mx-auto grid grid-cols-7 gap-1">
-                  {/* Tab 1: Lãnh Địa (领地) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-lobby"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen(
-                        store.activeScreen === 'lobby' ? 'battle' : 'lobby'
-                      );
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border transition-all cursor-pointer ${
-                      store.activeScreen === 'lobby'
-                        ? 'bg-gradient-to-b from-[#d9a84e] via-[#a67629] to-[#6e4a16] border-[#fde047] text-[#fff8e7]'
-                        : 'bg-[#24160c] border-[#6e4b26]/60 text-[#d8be94] hover:text-[#fff1c2]'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-red-500 border border-white absolute top-0.5 right-1" />
-                    <Home className="w-3.5 h-3.5 text-[#f7d27a]" />
-                    <span className="text-[9px] font-extrabold mt-0.5 leading-none">
-                      Lãnh Địa
-                    </span>
-                  </button>
-
-                  {/* Tab 2: Dã Ngoại (野外) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-videos"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen(
-                        store.activeScreen === 'videos' ? 'battle' : 'videos'
-                      );
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border transition-all cursor-pointer ${
-                      store.activeScreen === 'videos'
-                        ? 'bg-gradient-to-b from-[#d9a84e] via-[#a67629] to-[#6e4a16] border-[#fde047] text-[#fff8e7]'
-                        : 'bg-[#24160c] border-[#6e4b26]/60 text-[#d8be94] hover:text-[#fff1c2]'
-                    }`}
-                  >
-                    <Film className="w-3.5 h-3.5 text-[#f7d27a]" />
-                    <span className="text-[9px] font-extrabold mt-0.5 leading-none">
-                      Dã Ngoại
-                    </span>
-                  </button>
-
-                  {/* Tab 3: Bản Đồ Ải (地图) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-campaign"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen(
-                        store.activeScreen === 'campaign'
-                          ? 'battle'
-                          : 'campaign'
-                      );
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border transition-all cursor-pointer ${
-                      store.activeScreen === 'campaign'
-                        ? 'bg-gradient-to-b from-[#d9a84e] via-[#a67629] to-[#6e4a16] border-[#fde047] text-[#fff8e7]'
-                        : 'bg-[#24160c] border-[#6e4b26]/60 text-[#d8be94] hover:text-[#fff1c2]'
-                    }`}
-                  >
-                    <Map className="w-3.5 h-3.5 text-[#f7d27a]" />
-                    <span className="text-[9px] font-extrabold mt-0.5 leading-none">
-                      Bản Đồ
-                    </span>
-                  </button>
-
-                  {/* Tab 4: Chiến Dịch (战役 - Center Highlighted Crest) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-battle"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen('battle');
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border-2 transition-all cursor-pointer ${
-                      store.activeScreen === 'battle'
-                        ? 'bg-gradient-to-b from-[#f5d061] via-[#c8963e] to-[#80571a] border-[#fef08a] text-[#1e1208] shadow-[0_0_14px_rgba(245,158,11,0.55)]'
-                        : 'bg-[#382210] border-[#b8893e] text-[#fde047]'
-                    }`}
-                  >
-                    <Swords className="w-3.5 h-3.5" />
-                    <span className="text-[9px] font-black uppercase mt-0.5 leading-none">
-                      Chiến Dịch
-                    </span>
-                  </button>
-
-                  {/* Tab 5: Anh Hùng (英雄 - with green upgrade arrow & red dot matching 18_roster_late.jpg) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-collection"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen(
-                        store.activeScreen === 'collection' ||
-                          store.activeScreen === 'details' ||
-                          store.activeScreen === 'upgrades'
-                          ? 'battle'
-                          : 'collection'
-                      );
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border transition-all cursor-pointer ${
+                  {/* Tab 5: Heroes Roster */}
+                  {(() => {
+                    const isActive =
                       store.activeScreen === 'collection' ||
                       store.activeScreen === 'details' ||
-                      store.activeScreen === 'upgrades'
-                        ? 'bg-gradient-to-b from-[#d9a84e] via-[#a67629] to-[#6e4a16] border-[#fde047] text-[#fff8e7]'
-                        : 'bg-[#24160c] border-[#6e4b26]/60 text-[#d8be94] hover:text-[#fff1c2]'
-                    }`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 border border-amber-200 text-[7px] text-white font-black flex items-center justify-center absolute top-0.5 right-1">
-                      !
-                    </span>
-                    <Users className="w-3.5 h-3.5 text-[#4ade80]" />
-                    <span className="text-[9px] font-extrabold mt-0.5 leading-none">
-                      Anh Hùng
-                    </span>
-                  </button>
+                      store.activeScreen === 'upgrades';
+                    return (
+                      <button
+                        type="button"
+                        data-testid="nav-btn-collection"
+                        onClick={() => {
+                          setShellState('playing');
+                          store.setActiveScreen(
+                            isActive ? 'battle' : 'collection'
+                          );
+                        }}
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.55),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#331e0f]/75 via-[#221309]/90 to-[#140a04] hover:from-[#432814]/85'
+                        }`}
+                      >
+                        <RedNotificationDot className="absolute top-0.5 right-1 z-20" />
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavHeroes
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.65)]'
+                                : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#d2b483] group-hover:text-[#fbe5be] [text-shadow:0_1px_2px_#000000]'
+                          }`}
+                        >
+                          Heroes
+                        </span>
+                      </button>
+                    );
+                  })()}
 
-                  {/* Tab 6: Đội Hình (编队) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-formation"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen(
-                        store.activeScreen === 'formation'
-                          ? 'battle'
-                          : 'formation'
-                      );
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border transition-all cursor-pointer ${
-                      store.activeScreen === 'formation'
-                        ? 'bg-gradient-to-b from-[#d9a84e] via-[#a67629] to-[#6e4a16] border-[#fde047] text-[#fff8e7]'
-                        : 'bg-[#24160c] border-[#6e4b26]/60 text-[#d8be94] hover:text-[#fff1c2]'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5 text-[#f7d27a]" />
-                    <span className="text-[9px] font-extrabold mt-0.5 leading-none">
-                      Đội Hình
-                    </span>
-                  </button>
+                  {/* Tab 6: Formations */}
+                  {(() => {
+                    const isActive = store.activeScreen === 'formation';
+                    return (
+                      <button
+                        type="button"
+                        data-testid="nav-btn-formation"
+                        onClick={() => {
+                          setShellState('playing');
+                          store.setActiveScreen(
+                            isActive ? 'battle' : 'formation'
+                          );
+                        }}
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.55),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#331e0f]/75 via-[#221309]/90 to-[#140a04] hover:from-[#432814]/85'
+                        }`}
+                      >
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavFormation
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.65)]'
+                                : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#d2b483] group-hover:text-[#fbe5be] [text-shadow:0_1px_2px_#000000]'
+                          }`}
+                        >
+                          Đội Hình
+                        </span>
+                      </button>
+                    );
+                  })()}
 
-                  {/* Tab 7: Quán Rượu (酒馆) */}
-                  <button
-                    type="button"
-                    data-testid="nav-btn-summon"
-                    onClick={() => {
-                      setShellState('playing');
-                      store.setActiveScreen(
-                        store.activeScreen === 'summon' ? 'battle' : 'summon'
-                      );
-                    }}
-                    className={`relative flex flex-col items-center justify-center py-1 rounded-lg border transition-all cursor-pointer ${
-                      store.activeScreen === 'summon'
-                        ? 'bg-gradient-to-b from-[#d9a84e] via-[#a67629] to-[#6e4a16] border-[#fde047] text-[#fff8e7]'
-                        : 'bg-[#24160c] border-[#6e4b26]/60 text-[#d8be94] hover:text-[#fff1c2]'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-red-500 border border-white absolute top-0.5 right-1" />
-                    <Sparkles className="w-3.5 h-3.5 text-[#f7d27a]" />
-                    <span className="text-[9px] font-extrabold mt-0.5 leading-none">
-                      Quán Rượu
-                    </span>
-                  </button>
+                  {/* Tab 7: The Noble Tavern */}
+                  {(() => {
+                    const isActive = store.activeScreen === 'summon';
+                    return (
+                      <button
+                        type="button"
+                        data-testid="nav-btn-summon"
+                        onClick={() => {
+                          setShellState('playing');
+                          store.setActiveScreen(isActive ? 'battle' : 'summon');
+                        }}
+                        className={`group relative flex flex-col items-center justify-between px-0.5 pt-1 pb-1 transition-all cursor-pointer min-w-0 ${
+                          isActive
+                            ? '-mt-1.5 pt-1.5 z-10 rounded-t-md bg-gradient-to-b from-[#fce6b0] via-[#dfa84f] to-[#8c5518] border-t-2 border-x border-[#fff6d1] shadow-[0_-3px_14px_rgba(245,158,11,0.55),inset_0_1px_2px_#ffffff]'
+                            : 'bg-gradient-to-b from-[#331e0f]/75 via-[#221309]/90 to-[#140a04] hover:from-[#432814]/85'
+                        }`}
+                      >
+                        <RedNotificationDot className="absolute top-0.5 right-1 z-20" />
+                        <div className="flex-1 flex items-center justify-center">
+                          <IconNavTavern
+                            active={isActive}
+                            className={`w-7 h-7 transition-transform duration-150 ${
+                              isActive
+                                ? 'scale-110 -translate-y-0.5 drop-shadow-[0_2px_6px_rgba(254,240,138,0.65)]'
+                                : 'opacity-90 group-hover:opacity-100 group-hover:scale-105'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-extrabold leading-none truncate w-full text-center tracking-tight ${
+                            isActive
+                              ? 'text-[#fffdf5] [text-shadow:0_1px_2px_#241104,0_0_4px_#451a03]'
+                              : 'text-[#d2b483] group-hover:text-[#fbe5be] [text-shadow:0_1px_2px_#000000]'
+                          }`}
+                        >
+                          Tavern
+                        </span>
+                      </button>
+                    );
+                  })()}
                 </div>
               </nav>
             </footer>
@@ -909,34 +734,34 @@ export default function App() {
             role="dialog"
             aria-label="Tạm dừng trận đấu"
             data-testid="pause-modal"
-            className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/80 pointer-events-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 pointer-events-auto"
           >
-            <div className="w-full max-w-md bg-[#f2e2c4] border-4 border-[#8c6430] rounded-2xl p-6 text-center shadow-2xl space-y-4 text-[#3b2512]">
+            <div className="w-full max-w-sm bg-[#f2e2c4] border-4 border-[#8c6430] rounded-2xl p-5 text-center shadow-2xl space-y-3 text-[#3b2512]">
               <h2
-                className="text-2xl font-extrabold text-[#5c3818] uppercase"
+                className="text-xl font-extrabold text-[#5c3818] uppercase"
                 style={{ fontFamily: '"Cinzel", serif' }}
               >
-                Tạm Dừng Giao Tranh
+                Paused · Tạm Dừng
               </h2>
-              <p className="text-xs text-[#6b4826]">
+              <p className="text-xs text-[#6b4826] truncate">
                 {currentStage.chapter} — {currentStage.name}
               </p>
 
-              <div className="flex flex-col gap-2.5 pt-2">
+              <div className="flex flex-col gap-2 pt-1">
                 <button
                   type="button"
                   data-testid="resume-battle-btn"
                   onClick={() => setShellState('playing')}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-b from-[#67e8f9] to-[#0284c7] text-[#041019] font-extrabold text-xs uppercase tracking-wider cursor-pointer shadow"
                 >
-                  Tiếp Tục Chiến Đấu
+                  Continue · Tiếp Tục Chiến Đấu
                 </button>
                 <button
                   type="button"
                   onClick={handleRetryBattle}
                   className="w-full py-2.5 rounded-xl bg-[#8c6239] hover:bg-[#734f2c] text-amber-100 font-bold text-xs uppercase tracking-wider cursor-pointer"
                 >
-                  Đánh Lại Từ Đầu
+                  Try Again · Đánh Lại Từ Đầu
                 </button>
               </div>
             </div>
@@ -959,6 +784,42 @@ export default function App() {
             />
           )}
 
+        {/* CLASSIC AFK ARENA SYSTEM MODALS */}
+        {activeSystemModal === 'bag' && (
+          <ClassicBagModal onClose={() => setActiveSystemModal(null)} />
+        )}
+        {activeSystemModal === 'guild' && (
+          <ClassicGuildModal onClose={() => setActiveSystemModal(null)} />
+        )}
+        {activeSystemModal === 'quests' && (
+          <ClassicQuestsModal onClose={() => setActiveSystemModal(null)} />
+        )}
+        {activeSystemModal === 'events' && (
+          <ClassicEventsModal onClose={() => setActiveSystemModal(null)} />
+        )}
+        {activeSystemModal === 'mail' && (
+          <ClassicMailModal onClose={() => setActiveSystemModal(null)} />
+        )}
+        {activeSystemModal === 'settings' && (
+          <ClassicSettingsModal
+            onClose={() => setActiveSystemModal(null)}
+            isMuted={isMuted}
+            onToggleMute={() => setIsMuted(soundEngine.toggleMute())}
+            graphicsPreset={graphicsPreset}
+            onChangeGraphicsPreset={setGraphicsPreset}
+            arenaOverride={arenaOverride}
+            onChangeArenaOverride={setArenaOverride}
+            cameraShakeEnabled={cameraShakeEnabled}
+            onToggleCameraShake={() => setCameraShakeEnabled((v) => !v)}
+            ultimateCameraEnabled={ultimateCameraEnabled}
+            onToggleUltimateCamera={() => setUltimateCameraEnabled((v) => !v)}
+            reducedMotion={reducedMotion}
+            onToggleReducedMotion={() => setReducedMotion((v) => !v)}
+            showPerfOverlay={showPerfOverlay}
+            onTogglePerfOverlay={() => setShowPerfOverlay((v) => !v)}
+          />
+        )}
+
         {/* BLUESTACKS ADB BRIDGE MODAL */}
         {showAdbModal && (
           <div
@@ -967,21 +828,21 @@ export default function App() {
             data-testid="adb-bridge-modal"
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 pointer-events-auto"
           >
-            <div className="w-full max-w-xl bg-[#f3e3c3] border-4 border-[#8c6430] rounded-2xl p-5 shadow-2xl text-[#3b2512] space-y-3">
-              <div className="flex items-center justify-between border-b border-[#8c6430]/40 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="w-5 h-5 text-[#7c5121]" />
+            <div className="w-full max-w-md bg-[#f3e3c3] border-4 border-[#8c6430] rounded-2xl p-4 shadow-2xl text-[#3b2512] space-y-3">
+              <div className="flex items-center justify-between border-b border-[#8c6430]/40 pb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Smartphone className="w-4 h-4 text-[#7c5121] shrink-0" />
                   <h3
-                    className="text-base font-extrabold text-[#4d2f14] uppercase"
+                    className="text-sm font-extrabold text-[#4d2f14] uppercase truncate"
                     style={{ fontFamily: '"Cinzel", serif' }}
                   >
-                    Đồng Bộ Giao Diện BlueStacks &amp; 50 Ảnh Chụp AFK Arena
+                    Kiến Trúc Mobile Portrait AFK Arena Classic
                   </h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowAdbModal(false)}
-                  className="p-1 rounded-lg bg-[#8c6239] text-amber-100 cursor-pointer"
+                  className="p-1 rounded-lg bg-[#8c6239] text-amber-100 cursor-pointer shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -989,25 +850,25 @@ export default function App() {
 
               <div className="text-xs text-[#4d2f14] space-y-2 leading-relaxed">
                 <p>
-                  Giao diện hiện tại đã được dựng lại trực tiếp theo đúng <strong>50 ảnh chụp màn hình AFK Arena</strong> (bảng màu giấy da cổ Parchment <code>#ebd6ad</code>, khung gỗ đồng Ranhorn, Sanctuary Tướng với vòng phép 4 Kỹ năng &amp; 6 ô Trang bị, màn hình VS 5v5, Quán Rượu Dolly và 5 thẻ tướng vòm cung trong trận).
+                  Giao diện được cố định theo chuẩn <strong>Mobile Portrait 9:16 (460px)</strong> của <strong>AFK Arena Classic</strong>: TopHUD 2 hàng tách biệt, sân đấu dọc 3 phân vùng (<code>BattleHUD</code> ➔ <code>BattleField</code> ➔ <code>HeroUltimateBar</code>), và hệ thống thẻ chống tràn chữ.
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => {
                     setBluestacksFrameMode(true);
                     setShowAdbModal(false);
                   }}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-b from-[#67e8f9] to-[#0284c7] text-[#041019] font-extrabold text-xs cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-b from-[#67e8f9] to-[#0284c7] text-[#041019] font-extrabold text-xs cursor-pointer"
                 >
-                  Bật Khung Dọc Mobile (9:16)
+                  Khung Dọc 9:16
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAdbModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#8c6239] text-amber-100 font-bold text-xs cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#8c6239] text-amber-100 font-bold text-xs cursor-pointer"
                 >
                   Đóng
                 </button>
@@ -1015,7 +876,7 @@ export default function App() {
             </div>
           </div>
         )}
-      </div>
-    </main>
+      </AppShell>
+    </MobileFrame>
   );
 }

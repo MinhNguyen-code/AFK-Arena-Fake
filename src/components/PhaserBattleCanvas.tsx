@@ -8,7 +8,7 @@ import {
   TeamFormationSlots,
 } from '../game/types';
 import { BattleSimulation } from '../game/battleEngine';
-import { getHeroById, HERO_ROSTER } from '../game/heroes';
+import { getHeroById } from '../game/heroes';
 import { getCampaignStage } from '../game/campaign';
 import { soundEngine } from '../game/audio';
 
@@ -41,11 +41,74 @@ interface UnitVisualNode {
   walkPhase: number;
 }
 
+const PORTRAIT_WIDTH = 448;
+const PORTRAIT_HEIGHT = 430;
+
+// Well-separated Portrait 5v5 Formation Coordinates
+// Allies: Lower-left / Foreground advancing Up-Right
+const ALLY_PORTRAIT_SLOTS: Array<{ x: number; y: number }> = [
+  { x: 176, y: 266 }, // Slot 0: Frontline 1
+  { x: 112, y: 296 }, // Slot 1: Frontline 2
+  { x: 208, y: 348 }, // Slot 2: Backline 3
+  { x: 134, y: 382 }, // Slot 3: Backline 4
+  { x: 58, y: 354 },  // Slot 4: Backline 5
+];
+
+// Enemies: Upper-right / Background advancing Down-Left
+const ENEMY_PORTRAIT_SLOTS: Array<{ x: number; y: number }> = [
+  { x: 272, y: 198 }, // Slot 0: Frontline 1
+  { x: 336, y: 168 }, // Slot 1: Frontline 2
+  { x: 240, y: 118 }, // Slot 2: Backline 3
+  { x: 314, y: 88 },  // Slot 3: Backline 4
+  { x: 390, y: 114 }, // Slot 4: Backline 5
+];
+
+function projectUnitToPortrait(u: BattleUnitRuntime): {
+  x: number;
+  y: number;
+  homeX: number;
+  homeY: number;
+} {
+  const slots = u.team === 'ally' ? ALLY_PORTRAIT_SLOTS : ENEMY_PORTRAIT_SLOTS;
+  const idx = Math.max(0, Math.min(4, u.position));
+  const home = slots[idx] || slots[0];
+
+  // Map simulation movement delta (u.x - u.homeX) onto the diagonal portrait clash axis
+  const simDx = u.x - u.homeX;
+  const simDy = u.y - u.homeY;
+
+  const px = Phaser.Math.Clamp(home.x + simDx * 0.22, 42, PORTRAIT_WIDTH - 42);
+  const py = Phaser.Math.Clamp(
+    home.y - simDx * 0.14 + simDy * 0.1,
+    72,
+    PORTRAIT_HEIGHT - 32
+  );
+
+  return {
+    x: px,
+    y: py,
+    homeX: home.x,
+    homeY: home.y,
+  };
+}
+
+const STATUS_SHORT_LABELS: Record<string, string> = {
+  stun: '⚡STUN',
+  freeze: '❄️FREEZE',
+  petrify: '🪨PETR',
+  silence: '🔇SIL',
+  slow: '🐌SLOW',
+  atk_up: '⚔️ATK+',
+  spd_up: '⚡SPD+',
+  shield: '🛡️SHLD',
+};
+
 const THEME_PALETTES = {
   sanctuary: {
-    skyTop: 0x0b1120,
-    skyBottom: 0x1e293b,
-    floorMain: 0x172033,
+    skyTop: 0x0b1320,
+    skyBottom: 0x1a283b,
+    floorMain: 0x182232,
+    floorPath: 0x243247,
     floorGrid: 0x334155,
     pillar: 0x1e293b,
     rune: 0xf59e0b,
@@ -54,6 +117,7 @@ const THEME_PALETTES = {
     skyTop: 0x180910,
     skyBottom: 0x2d121e,
     floorMain: 0x1f121b,
+    floorPath: 0x331826,
     floorGrid: 0x4c1d2e,
     pillar: 0x291522,
     rune: 0xef4444,
@@ -62,6 +126,7 @@ const THEME_PALETTES = {
     skyTop: 0x071a15,
     skyBottom: 0x113028,
     floorMain: 0x0f241f,
+    floorPath: 0x16382f,
     floorGrid: 0x1e463b,
     pillar: 0x132a23,
     rune: 0x10b981,
@@ -70,6 +135,7 @@ const THEME_PALETTES = {
     skyTop: 0x081426,
     skyBottom: 0x162b4d,
     floorMain: 0x111f38,
+    floorPath: 0x192e52,
     floorGrid: 0x233d69,
     pillar: 0x172847,
     rune: 0x38bdf8,
@@ -78,6 +144,7 @@ const THEME_PALETTES = {
     skyTop: 0x0f071e,
     skyBottom: 0x22103d,
     floorMain: 0x160d29,
+    floorPath: 0x241542,
     floorGrid: 0x3b1d66,
     pillar: 0x1e1136,
     rune: 0xa855f7,
@@ -124,7 +191,6 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
     if (!manualUltimateRequest || !simRef.current) return;
     const sim = simRef.current;
     if (manualUltimateRequest.heroId === '__ALL__') {
-      // Trigger all living allies' ultimates
       for (const u of sim.getUnits()) {
         if (u.team === 'ally' && u.isAlive) {
           sim.triggerUltimate(u.instanceId, manualUltimateRequest.force);
@@ -164,6 +230,7 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
     onSnapshotRef.current(sim.getSnapshot());
 
     const unitVisuals = new Map<string, UnitVisualNode>();
+    const activeFloaterCounts = new Map<string, number>();
     let vfxLayer: Phaser.GameObjects.Container | null = null;
     let bannerContainer: Phaser.GameObjects.Container | null = null;
     let bannerText: Phaser.GameObjects.Text | null = null;
@@ -180,20 +247,20 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
       const secondary = hexToNumber(def.visual.secondaryColor);
       const accent = hexToNumber(def.visual.accentColor);
       const dir = unit.facing;
-      const scale = unit.isBoss ? 1.24 : 1.0;
+      const scale = unit.isBoss ? 0.92 : 0.78;
 
       g.clear();
       g.save();
       g.scaleCanvas(dir * scale, scale);
 
-      // 1. Flowing Cape / Wings behind torso
+      // 1. Cape / Wings
       g.fillStyle(secondary, 0.95);
       g.lineStyle(2, primary, 0.9);
       if (def.visual.capeStyle === 'wings') {
         g.beginPath();
         g.moveTo(-6, -42);
-        g.lineTo(-34, -62);
-        g.lineTo(-26, -24);
+        g.lineTo(-32, -60);
+        g.lineTo(-24, -24);
         g.lineTo(-8, -14);
         g.closePath();
         g.fillPath();
@@ -201,126 +268,33 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
       } else {
         g.beginPath();
         g.moveTo(-8, -46);
-        g.lineTo(-26, -8);
+        g.lineTo(-24, -8);
         g.lineTo(-6, -6);
         g.closePath();
         g.fillPath();
         g.strokePath();
       }
 
-      // 2. Legs / Boots
+      // 2. Legs
       g.fillStyle(0x0f172a, 1);
-      g.fillRoundedRect(-11, -16, 8, 16, 3);
-      g.fillRoundedRect(3, -16, 8, 16, 3);
+      g.fillRoundedRect(-10, -16, 7, 16, 3);
+      g.fillRoundedRect(3, -16, 7, 16, 3);
 
-      // 3. Armored Torso & Tunic
+      // 3. Armored Torso
       g.fillStyle(primary, 1);
       g.lineStyle(2, accent, 0.9);
-      g.fillRoundedRect(-14, -44, 28, 30, 6);
-      g.strokeRoundedRect(-14, -44, 28, 30, 6);
+      g.fillRoundedRect(-13, -44, 26, 30, 6);
+      g.strokeRoundedRect(-13, -44, 26, 30, 6);
 
-      // Chest Core Emblem
-      g.fillStyle(accent, 0.95);
-      g.fillCircle(0, -31, 4.5);
-
-      // 4. Shoulder Pauldrons
-      g.fillStyle(secondary, 1);
-      g.lineStyle(1.8, accent, 0.9);
-      g.fillCircle(-15, -40, 7);
-      g.strokeCircle(-15, -40, 7);
-      g.fillCircle(15, -40, 7);
-      g.strokeCircle(15, -40, 7);
-
-      // 5. Head & Glowing Eyes
+      // 4. Head
       g.fillStyle(0x1e293b, 1);
       g.lineStyle(2, accent, 0.95);
-      g.fillCircle(0, -56, 11);
-      g.strokeCircle(0, -56, 11);
+      g.fillCircle(0, -55, 10);
+      g.strokeCircle(0, -55, 10);
 
-      // Eyes facing right (+X in local space)
-      g.fillStyle(accent, 1);
-      g.fillCircle(4, -56, 2.2);
-      g.fillCircle(9, -56, 2.0);
-
-      // 6. Distinct Helm / Crown / Horns / Halo
-      if (def.visual.helmStyle === 'crown') {
-        g.fillStyle(accent, 1);
-        g.beginPath();
-        g.moveTo(-10, -64);
-        g.lineTo(-6, -75);
-        g.lineTo(0, -67);
-        g.lineTo(5, -76);
-        g.lineTo(10, -64);
-        g.closePath();
-        g.fillPath();
-      } else if (def.visual.helmStyle === 'horned') {
-        g.fillStyle(accent, 1);
-        g.beginPath();
-        g.moveTo(-8, -63);
-        g.lineTo(-18, -77);
-        g.lineTo(-2, -66);
-        g.closePath();
-        g.fillPath();
-        g.beginPath();
-        g.moveTo(8, -63);
-        g.lineTo(18, -77);
-        g.lineTo(2, -66);
-        g.closePath();
-        g.fillPath();
-      } else if (def.visual.helmStyle === 'halo') {
-        g.lineStyle(2.5, accent, 0.95);
-        g.strokeEllipse(0, -73, 22, 6);
-      } else if (def.visual.helmStyle === 'crest') {
-        g.fillStyle(primary, 1);
-        g.lineStyle(1.5, accent, 1);
-        g.fillTriangle(-6, -65, 6, -65, 0, -79);
-        g.strokeTriangle(-6, -65, 6, -65, 0, -79);
-      } else if (def.visual.helmStyle === 'hood') {
-        g.fillStyle(primary, 0.95);
-        g.beginPath();
-        g.moveTo(-13, -52);
-        g.lineTo(-4, -73);
-        g.lineTo(12, -62);
-        g.closePath();
-        g.fillPath();
-      }
-
-      // 7. Signature Weapon in Forward Hand
+      // 5. Weapon
       g.lineStyle(2.5, accent, 1);
-      g.fillStyle(accent, 0.95);
-      const w = def.visual.weaponStyle;
-      if (w === 'greatsword' || w === 'twinblades' || w === 'daggers') {
-        g.fillStyle(accent, 1);
-        g.beginPath();
-        g.moveTo(14, -28);
-        g.lineTo(38, -56);
-        g.lineTo(32, -60);
-        g.lineTo(11, -33);
-        g.closePath();
-        g.fillPath();
-        // Crossguard
-        g.lineStyle(3, primary, 1);
-        g.lineBetween(10, -36, 20, -25);
-      } else if (w === 'warhammer' || w === 'frost_halberd' || w === 'void_glaive') {
-        g.lineStyle(3, 0xcbd5e1, 1);
-        g.lineBetween(14, -12, 26, -62);
-        g.fillStyle(primary, 1);
-        g.lineStyle(2, accent, 1);
-        g.fillRoundedRect(17, -68, 18, 12, 3);
-        g.strokeRoundedRect(17, -68, 18, 12, 3);
-      } else if (w === 'longbow') {
-        g.lineStyle(2.8, accent, 1);
-        g.beginPath();
-        g.arc(16, -34, 20, -1.1, 1.1, false);
-        g.strokePath();
-      } else {
-        // Staff / Scepter / Orb / Tome / Harp
-        g.lineStyle(2.8, accent, 1);
-        g.lineBetween(16, -12, 22, -58);
-        g.fillStyle(primary, 1);
-        g.fillCircle(22, -62, 7);
-        g.strokeCircle(22, -62, 7);
-      }
+      g.lineBetween(12, -14, 22, -54);
 
       g.restore();
     };
@@ -332,25 +306,23 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
 
       preload() {
         this.load.crossOrigin = 'anonymous';
-        const activeHeroIds = new Set(sim.getSnapshot().units.map((u) => u.heroId));
+        const activeHeroIds = new Set(
+          sim.getSnapshot().units.map((u) => u.heroId)
+        );
         for (const hId of activeHeroIds) {
           const def = getHeroById(hId);
           this.load.image(
             `battle_${def.id}`,
             def.battleUrl || `/assets/heroes/${def.id}_battle.webp`
           );
-          this.load.image(
-            `framed_${def.id}`,
-            def.framedUrl || `/assets/heroes/${def.id}_framed.webp`
-          );
         }
       }
 
       create() {
-        // 1. Layered 2.5D Dark-Fantasy Background
+        // 1. Classic AFK Arena Vertical Portrait Battlefield Environment (448 x 430)
         const bg = this.add.graphics();
 
-        // Sky gradient
+        // Upper Distant Sky & Ancient Archway Backdrop (y: 0..68)
         bg.fillGradientStyle(
           palette.skyTop,
           palette.skyTop,
@@ -358,61 +330,90 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
           palette.skyBottom,
           1
         );
-        bg.fillRect(0, 0, 1000, 210);
+        bg.fillRect(0, 0, PORTRAIT_WIDTH, 76);
 
-        // Distant Castle & Ancient Temple Silhouettes
-        bg.fillStyle(palette.pillar, 0.85);
-        for (let i = 0; i < 7; i++) {
-          const px = 70 + i * 140;
-          bg.fillRect(px - 22, 45, 44, 155);
-          bg.fillTriangle(px - 28, 45, px + 28, 45, px, 14);
-          // Glowing gothic temple window
-          bg.fillStyle(palette.rune, 0.25);
-          bg.fillRoundedRect(px - 7, 72, 14, 36, 6);
-          bg.fillStyle(palette.pillar, 0.85);
+        // Gothic pillars & torches along the upper horizon
+        bg.fillStyle(palette.pillar, 0.9);
+        for (let i = 0; i < 5; i++) {
+          const px = 44 + i * 90;
+          bg.fillRect(px - 14, 12, 28, 62);
+          bg.fillTriangle(px - 18, 12, px + 18, 12, px, 2);
+          bg.fillStyle(palette.rune, 0.35);
+          bg.fillRoundedRect(px - 5, 24, 10, 22, 4);
+          bg.fillStyle(palette.pillar, 0.9);
         }
 
-        // 2.5D Perspective Arena Floor (Trapezoid + Grid)
+        // Main Vertical Stone Courtyard Floor (y: 66..430)
         bg.fillStyle(palette.floorMain, 1);
-        bg.fillRect(0, 140, 1000, 400);
+        bg.fillRect(0, 66, PORTRAIT_WIDTH, PORTRAIT_HEIGHT - 66);
 
+        // Diagonal Stone Battle Road connecting Ally Foreground (Bottom-Left) to Enemy Background (Top-Right)
+        bg.fillStyle(palette.floorPath, 0.85);
+        bg.beginPath();
+        bg.moveTo(16, 420);
+        bg.lineTo(260, 420);
+        bg.lineTo(432, 72);
+        bg.lineTo(190, 72);
+        bg.closePath();
+        bg.fillPath();
+
+        // Perspective Stone Tile Grid Lines
+        bg.lineStyle(1, palette.floorGrid, 0.55);
+        for (let r = 0; r <= 7; r++) {
+          const y = 70 + r * 50;
+          bg.lineBetween(12, y, PORTRAIT_WIDTH - 12, y);
+        }
+        for (let c = 0; c <= 6; c++) {
+          const topX = 48 + c * 58;
+          const botX = 12 + c * 70;
+          bg.lineBetween(topX, 66, botX, PORTRAIT_HEIGHT);
+        }
+
+        // Ornate Gold Border Frame around Portrait Arena
         bg.lineStyle(2, palette.rune, 0.45);
-        bg.strokeRect(36, 138, 928, 344);
+        bg.strokeRoundedRect(8, 68, PORTRAIT_WIDTH - 16, PORTRAIT_HEIGHT - 76, 10);
 
-        // Perspective Grid Lines
-        bg.lineStyle(1, palette.floorGrid, 0.65);
-        for (let row = 0; row <= 6; row++) {
-          const y = 140 + row * 57;
-          bg.lineBetween(36, y, 964, y);
-        }
-        for (let col = 0; col <= 10; col++) {
-          const topX = 90 + col * 82;
-          const botX = 36 + col * 92.8;
-          bg.lineBetween(topX, 140, botX, 482);
-        }
+        // Central Classic AFK Arena Runic Magic Circle at Clash Center (224, 232)
+        bg.lineStyle(2, palette.rune, 0.42);
+        bg.strokeEllipse(224, 232, 168, 88);
+        bg.lineStyle(1.2, palette.rune, 0.28);
+        bg.strokeEllipse(224, 232, 124, 64);
 
-        // Central Sanctuary Rune Circle
-        bg.lineStyle(2, palette.rune, 0.35);
-        bg.strokeEllipse(500, 300, 240, 125);
-        bg.strokeEllipse(500, 300, 180, 92);
+        // Team Zone Labels (Subtle non-overlapping tactical floor markers)
+        this.add
+          .text(368, 60, 'ENEMY FORCE', {
+            fontFamily: '"Cinzel", serif',
+            fontSize: '9px',
+            fontStyle: 'bold',
+            color: '#fda4af',
+          })
+          .setOrigin(0.5, 0.5)
+          .setAlpha(0.75);
 
-        // Tactical Slot Markers (Frontline 1-2 & Backline 3-5)
+        this.add
+          .text(84, 414, 'ALLY SQUAD', {
+            fontFamily: '"Cinzel", serif',
+            fontSize: '9px',
+            fontStyle: 'bold',
+            color: '#7dd3fc',
+          })
+          .setOrigin(0.5, 0.5)
+          .setAlpha(0.75);
+
+        // 2. Tactical Portrait Slot Pedestals & Unit Visual Nodes
         const snap = sim.getSnapshot();
         for (const u of snap.units) {
+          const pos = projectUnitToPortrait(u);
           const slotColor = u.team === 'ally' ? 0x38bdf8 : 0xf43f5e;
-          bg.lineStyle(1.5, slotColor, 0.32);
-          bg.strokeEllipse(u.homeX, u.homeY, 68, 26);
-        }
+          bg.lineStyle(1.5, slotColor, 0.35);
+          bg.strokeEllipse(pos.homeX, pos.homeY, 46, 16);
 
-        // 2. Create Visual Nodes for all Units
-        for (const u of snap.units) {
-          const root = this.add.container(u.x, u.y);
-          root.setDepth(Math.round(u.y));
+          const root = this.add.container(pos.x, pos.y);
+          root.setDepth(Math.round(pos.y));
 
-          const shadow = this.add.ellipse(0, 2, 54, 18, 0x000000, 0.55);
-          const ringColor = u.team === 'ally' ? 0x38bdf8 : 0xf43f5e;
-          const ring = this.add.ellipse(0, 0, 62, 22);
-          ring.setStrokeStyle(2, ringColor, 0.85);
+          const shadow = this.add.ellipse(0, 2, 40, 13, 0x000000, 0.55);
+          const ring = this.add.ellipse(0, 0, 44, 15);
+          ring.setStrokeStyle(1.8, slotColor, 0.85);
 
           const body = this.add.container(0, 0);
           const spriteGraphics = this.add.graphics();
@@ -421,11 +422,17 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
           const accentNum = hexToNumber(def.visual.accentColor);
 
           if (this.textures.exists(`battle_${u.heroId}`)) {
-            // Ornate faction aura backplate behind the official hero battle sprite
-            const aura = this.add.ellipse(0, -40, u.isBoss ? 66 : 56, u.isBoss ? 78 : 66, primaryNum, 0.25);
-            aura.setStrokeStyle(2, accentNum, 0.85);
-            const battleImg = this.add.image(0, -40, `battle_${u.heroId}`);
-            const targetH = u.isBoss ? 92 : 76;
+            const aura = this.add.ellipse(
+              0,
+              -28,
+              u.isBoss ? 48 : 40,
+              u.isBoss ? 56 : 46,
+              primaryNum,
+              0.24
+            );
+            aura.setStrokeStyle(1.5, accentNum, 0.8);
+            const battleImg = this.add.image(0, -28, `battle_${u.heroId}`);
+            const targetH = u.isBoss ? 64 : 52;
             const scaleFactor = targetH / (battleImg.height || 200);
             battleImg.setScale(scaleFactor);
             battleImg.setFlipX(u.team === 'enemy');
@@ -435,53 +442,58 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
             body.add(spriteGraphics);
           }
 
-          const shieldDome = this.add.ellipse(0, -38, 72, 82, 0x38bdf8, 0.18);
-          shieldDome.setStrokeStyle(2, 0x7dd3fc, 0.75);
+          const shieldDome = this.add.ellipse(0, -28, 50, 56, 0x38bdf8, 0.18);
+          shieldDome.setStrokeStyle(1.5, 0x7dd3fc, 0.75);
           shieldDome.setVisible(u.shield > 0);
 
-          const stoneOverlay = this.add.ellipse(0, -38, 56, 76, 0x94a3b8, 0.65);
+          const stoneOverlay = this.add.ellipse(0, -28, 42, 54, 0x94a3b8, 0.65);
           stoneOverlay.setVisible(false);
 
-          // Overhead Bars & Nameplate
-          const barBgHp = this.add.rectangle(0, -94, 64, 7, 0x090d16, 0.95);
+          // Compact Overhead HP & Energy Bars (46px wide — zero collision between units)
+          const barBgHp = this.add.rectangle(0, -61, 46, 5.5, 0x090d16, 0.95);
           barBgHp.setStrokeStyle(1, 0x334155, 0.9);
-          const hpColor = u.team === 'ally' ? 0x10b981 : 0xef4444;
+          const hpColor = u.team === 'ally' ? 0x22c55e : 0xef4444;
           const hpBarFill = this.add
-            .rectangle(-31, -94, 62, 5, hpColor, 1)
+            .rectangle(-22, -61, 44, 3.8, hpColor, 1)
             .setOrigin(0, 0.5);
           const shieldBarFill = this.add
-            .rectangle(-31, -94, 0, 5, 0x38bdf8, 0.9)
+            .rectangle(-22, -61, 0, 3.8, 0x38bdf8, 0.9)
             .setOrigin(0, 0.5);
 
-          const barBgEn = this.add.rectangle(0, -85, 64, 5, 0x090d16, 0.95);
+          const barBgEn = this.add.rectangle(0, -55, 46, 4, 0x090d16, 0.95);
           const energyBarFill = this.add
-            .rectangle(-31, -85, Math.min(62, (u.energy / 100) * 62), 3.5, 0xf59e0b, 1)
+            .rectangle(
+              -22,
+              -55,
+              Math.min(44, (u.energy / 100) * 44),
+              2.5,
+              0xf59e0b,
+              1
+            )
             .setOrigin(0, 0.5);
 
+          // Short non-overlapping Nameplate (first word only, 9.5px bold)
+          const shortName = u.name.split(' ')[0].slice(0, 9);
           const nameText = this.add
-            .text(
-              0,
-              -109,
-              `${u.isBoss ? '★ ' : ''}${u.name.split(' ')[0]} Lv.${u.level}`,
-              {
-                fontFamily: '"Plus Jakarta Sans", sans-serif',
-                fontSize: '11px',
-                fontStyle: 'bold',
-                color: u.team === 'ally' ? '#e2e8f0' : '#fecdd3',
-                stroke: '#020617',
-                strokeThickness: 3,
-              }
-            )
+            .text(0, -71, `${u.isBoss ? '★' : ''}${shortName}`, {
+              fontFamily: '"Plus Jakarta Sans", sans-serif',
+              fontSize: '9.5px',
+              fontStyle: 'bold',
+              color: u.team === 'ally' ? '#e2e8f0' : '#fecdd3',
+              stroke: '#020617',
+              strokeThickness: 2.5,
+            })
             .setOrigin(0.5, 0.5);
 
+          // Compact Single Status Badge (e.g. ⚡STUN) above nameplate
           const statusText = this.add
-            .text(0, -123, '', {
+            .text(0, -83, '', {
               fontFamily: '"JetBrains Mono", monospace',
-              fontSize: '10px',
+              fontSize: '8.5px',
               fontStyle: 'bold',
               color: '#fef08a',
-              backgroundColor: 'rgba(15,23,42,0.85)',
-              padding: { x: 4, y: 1 },
+              backgroundColor: 'rgba(15,23,42,0.88)',
+              padding: { x: 3, y: 1 },
             })
             .setOrigin(0.5, 0.5)
             .setVisible(false);
@@ -518,21 +530,21 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
           });
         }
 
-        // 3. VFX Layer & Ultimate Callout Banner
+        // 3. VFX Layer & Compact Portrait Ultimate Callout Banner
         vfxLayer = this.add.container(0, 0);
         vfxLayer.setDepth(2000);
 
-        bannerContainer = this.add.container(500, 68);
+        bannerContainer = this.add.container(PORTRAIT_WIDTH / 2, 26);
         bannerContainer.setDepth(3000);
         bannerContainer.setVisible(false);
-        const bannerBg = this.add.rectangle(0, 0, 440, 40, 0x090d16, 0.92);
-        bannerBg.setStrokeStyle(2, 0xf59e0b, 1);
+        const bannerBg = this.add.rectangle(0, 0, 320, 26, 0x160d06, 0.94);
+        bannerBg.setStrokeStyle(1.5, 0xfde047, 1);
         bannerText = this.add
           .text(0, 0, '', {
             fontFamily: '"Cinzel", serif',
-            fontSize: '15px',
+            fontSize: '11px',
             fontStyle: 'bold',
-            color: '#fef08a',
+            color: '#fde047',
           })
           .setOrigin(0.5, 0.5);
         bannerContainer.add([bannerBg, bannerText]);
@@ -542,7 +554,7 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
         if (!simRef.current || pausedRef.current) return;
         const sim = simRef.current;
 
-        // 1. Step deterministic simulation if still running
+        // 1. Step deterministic simulation
         if (sim.getStatus() === 'running') {
           simAccumulatorMs += Math.min(deltaMs, 100) * speedRef.current;
           while (simAccumulatorMs >= 50 && sim.getStatus() === 'running') {
@@ -551,21 +563,23 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
           }
         }
 
-        // 2. Consume combat events and spawn Phaser VFX
+        // 2. Consume combat events and spawn Portrait VFX
         const newEvents = sim.consumeEvents();
         if (newEvents.length > 0 && vfxLayer) {
           this.renderCombatEvents(newEvents, sim.getUnits());
         }
 
-        // 3. Update Unit Visual Nodes
+        // 3. Update Unit Visual Nodes in Portrait Coordinates
         const liveUnits = sim.getUnits();
         for (const u of liveUnits) {
           const node = unitVisuals.get(u.instanceId);
           if (!node) continue;
 
           if (!u.isAlive) {
-            node.root.setAlpha(Math.max(0.18, node.root.alpha - deltaMs * 0.003));
-            node.body.setRotation(u.team === 'ally' ? -1.4 : 1.4);
+            node.root.setAlpha(
+              Math.max(0.15, node.root.alpha - deltaMs * 0.003)
+            );
+            node.body.setRotation(u.team === 'ally' ? -1.3 : 1.3);
             node.hpBarFill.width = 0;
             node.shieldBarFill.width = 0;
             node.energyBarFill.width = 0;
@@ -575,15 +589,15 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
             continue;
           }
 
-          // Smooth position interpolation
-          node.root.x = Phaser.Math.Linear(node.root.x, u.x, 0.35);
-          node.root.y = Phaser.Math.Linear(node.root.y, u.y, 0.35);
+          const targetPos = projectUnitToPortrait(u);
+          node.root.x = Phaser.Math.Linear(node.root.x, targetPos.x, 0.35);
+          node.root.y = Phaser.Math.Linear(node.root.y, targetPos.y, 0.35);
           node.root.setDepth(Math.round(node.root.y));
 
-          // Walk bob or action lunge
+          // Walk bob or action lunge along portrait diagonal
           node.walkPhase += (deltaMs / 1000) * 8 * speedRef.current;
           if (u.lastActionType === 'move') {
-            node.body.y = Math.abs(Math.sin(node.walkPhase)) * -6;
+            node.body.y = Math.abs(Math.sin(node.walkPhase)) * -4;
             node.body.x = 0;
           } else if (
             u.actionAnimTimerMs > 0 &&
@@ -591,38 +605,40 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
               u.lastActionType === 'skill' ||
               u.lastActionType === 'ultimate')
           ) {
-            const lunge = Math.sin((u.actionAnimTimerMs / 500) * Math.PI) * 14;
+            const lunge = Math.sin((u.actionAnimTimerMs / 500) * Math.PI) * 9;
             node.body.x = u.facing * lunge;
-            node.body.y = u.lastActionType === 'ultimate' ? -10 : 0;
+            node.body.y = -u.facing * lunge * 0.5;
           } else if (u.actionAnimTimerMs > 0 && u.lastActionType === 'hit') {
-            node.body.x = -u.facing * 6;
+            node.body.x = -u.facing * 4;
             node.body.y = 0;
           } else {
             node.body.x = 0;
-            node.body.y = Math.sin(node.walkPhase * 0.4) * -2;
+            node.body.y = Math.sin(node.walkPhase * 0.4) * -1.5;
           }
 
-          // Update HP, Shield, and Energy Bars
+          // Update HP, Shield, and Energy Bars (44px max fill width)
           const hpRatio = Math.max(0, Math.min(1, u.hp / u.maxHp));
-          node.hpBarFill.width = 62 * hpRatio;
+          node.hpBarFill.width = 44 * hpRatio;
 
           const shieldRatio = Math.max(0, Math.min(1, u.shield / u.maxHp));
-          node.shieldBarFill.width = 62 * shieldRatio;
+          node.shieldBarFill.width = 44 * shieldRatio;
           node.shieldDome.setVisible(u.shield > 0);
 
           const energyRatio = Math.max(0, Math.min(1, u.energy / 100));
-          node.energyBarFill.width = 62 * energyRatio;
-          node.energyBarFill.fillColor = u.energy >= 100 ? 0xfde047 : 0xf59e0b;
+          node.energyBarFill.width = 44 * energyRatio;
+          node.energyBarFill.fillColor =
+            u.energy >= 100 ? 0xfde047 : 0xf59e0b;
 
-          // Crowd Control & Buff Badges
+          // Compact Single Status Badge (prevents long multi-word overlaps)
           const isPetrified = u.statusEffects.some((s) => s.type === 'petrify');
           node.stoneOverlay.setVisible(isPetrified);
 
           if (u.statusEffects.length > 0) {
-            const labels = u.statusEffects
-              .slice(0, 2)
-              .map((s) => s.type.toUpperCase());
-            node.statusText.setText(labels.join(' · '));
+            const topStatus = u.statusEffects[0];
+            const label =
+              STATUS_SHORT_LABELS[topStatus.type] ||
+              topStatus.type.slice(0, 4).toUpperCase();
+            node.statusText.setText(label);
             node.statusText.setVisible(true);
           } else {
             node.statusText.setVisible(false);
@@ -657,134 +673,168 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
         if (!vfxLayer) return;
         const unitMap = new Map(units.map((u) => [u.instanceId, u]));
 
+        const spawnLimitedFloater = (
+          unitId: string,
+          x: number,
+          y: number,
+          textStr: string,
+          style: Phaser.Types.GameObjects.Text.TextStyle,
+          durationMs: number
+        ) => {
+          if (!vfxLayer) return;
+          const currentCount = activeFloaterCounts.get(unitId) || 0;
+          // Limit max simultaneous floating combat texts per unit to 2 to prevent overlap
+          if (currentCount >= 2) return;
+          activeFloaterCounts.set(unitId, currentCount + 1);
+
+          const txt = this.add
+            .text(x, y - currentCount * 13, textStr, style)
+            .setOrigin(0.5, 0.5);
+          vfxLayer.add(txt);
+          this.tweens.add({
+            targets: txt,
+            y: txt.y - 20,
+            alpha: 0,
+            duration: durationMs,
+            onComplete: () => {
+              txt.destroy();
+              const c = activeFloaterCounts.get(unitId) || 1;
+              activeFloaterCounts.set(unitId, Math.max(0, c - 1));
+            },
+          });
+        };
+
         for (const ev of events) {
           const source = unitMap.get(ev.sourceId);
           const target = ev.targetId ? unitMap.get(ev.targetId) : undefined;
           const colorNum = ev.vfxColor ? hexToNumber(ev.vfxColor) : 0xf59e0b;
 
-          if (ev.type === 'ultimate_cast' && source) {
+          const sourcePos = source ? projectUnitToPortrait(source) : null;
+          const targetPos = target ? projectUnitToPortrait(target) : null;
+
+          if (ev.type === 'ultimate_cast' && source && sourcePos) {
             if (bannerContainer && bannerText) {
-              bannerText.setText(`★ ${source.name.toUpperCase()} — ${ev.skillName} ★`);
+              const shortCaster = source.name.split(' ')[0].toUpperCase();
+              const shortSkill = (ev.skillName || 'ULTIMATE').slice(0, 22);
+              bannerText.setText(`★ ${shortCaster}: ${shortSkill} ★`);
               bannerContainer.setVisible(true);
-              bannerTimerMs = 1800;
+              bannerTimerMs = 1400;
             }
-            // Expanding golden shockwave ring around caster
-            const ring = this.add.ellipse(source.x, source.y - 20, 30, 14);
-            ring.setStrokeStyle(3, colorNum, 0.95);
+            const ring = this.add.ellipse(
+              sourcePos.x,
+              sourcePos.y - 16,
+              24,
+              12
+            );
+            ring.setStrokeStyle(2.5, colorNum, 0.95);
             vfxLayer.add(ring);
             this.tweens.add({
               targets: ring,
-              scaleX: 5.5,
-              scaleY: 5.5,
+              scaleX: 4.2,
+              scaleY: 4.2,
               alpha: 0,
-              duration: 550,
+              duration: 450,
               onComplete: () => ring.destroy(),
             });
           }
 
           if (
             (ev.type === 'basic_attack' || ev.type === 'active_skill') &&
-            source &&
-            target
+            sourcePos &&
+            targetPos
           ) {
             soundEngine.playHit(ev.type === 'active_skill');
-            // Projectile / Beam Line from source to target
             const line = this.add.graphics();
-            line.lineStyle(ev.type === 'active_skill' ? 4 : 2, colorNum, 0.9);
-            line.lineBetween(source.x, source.y - 36, target.x, target.y - 36);
+            line.lineStyle(
+              ev.type === 'active_skill' ? 3 : 1.5,
+              colorNum,
+              0.85
+            );
+            line.lineBetween(
+              sourcePos.x,
+              sourcePos.y - 26,
+              targetPos.x,
+              targetPos.y - 26
+            );
             vfxLayer.add(line);
             this.tweens.add({
               targets: line,
               alpha: 0,
-              duration: 240,
+              duration: 200,
               onComplete: () => line.destroy(),
             });
           }
 
-          if (ev.type === 'damage' && target && ev.value) {
-            // Impact burst circle
+          if (ev.type === 'damage' && target && targetPos && ev.value) {
             const impact = this.add.circle(
-              target.x,
-              target.y - 38,
-              ev.isCrit ? 22 : 13,
+              targetPos.x,
+              targetPos.y - 28,
+              ev.isCrit ? 15 : 9,
               colorNum,
-              0.65
+              0.6
             );
             vfxLayer.add(impact);
             this.tweens.add({
               targets: impact,
-              scale: 1.8,
+              scale: 1.6,
               alpha: 0,
-              duration: 260,
+              duration: 210,
               onComplete: () => impact.destroy(),
             });
 
-            // Floating Damage Number
-            const txt = this.add
-              .text(
-                target.x + (Math.random() - 0.5) * 24,
-                target.y - 72,
-                `${ev.isCrit ? 'CRIT! -' : '-'}${ev.value}`,
-                {
-                  fontFamily: '"JetBrains Mono", monospace',
-                  fontSize: ev.isCrit ? '15px' : '12px',
-                  fontStyle: 'bold',
-                  color: ev.isCrit ? '#fde047' : '#ffffff',
-                  stroke: '#020617',
-                  strokeThickness: 3,
-                }
-              )
-              .setOrigin(0.5, 0.5);
-            vfxLayer.add(txt);
-            this.tweens.add({
-              targets: txt,
-              y: txt.y - 34,
-              alpha: 0,
-              duration: 680,
-              onComplete: () => txt.destroy(),
-            });
+            spawnLimitedFloater(
+              target.instanceId,
+              targetPos.x + (Math.random() - 0.5) * 14,
+              targetPos.y - 50,
+              `${ev.isCrit ? '💥-' : '-'}${ev.value}`,
+              {
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: ev.isCrit ? '12px' : '10.5px',
+                fontStyle: 'bold',
+                color: ev.isCrit ? '#fde047' : '#ffffff',
+                stroke: '#020617',
+                strokeThickness: 2.5,
+              },
+              460
+            );
           }
 
-          if (ev.type === 'heal' && target && ev.value) {
-            const txt = this.add
-              .text(target.x, target.y - 76, `+${ev.value} HP`, {
+          if (ev.type === 'heal' && target && targetPos && ev.value) {
+            spawnLimitedFloater(
+              target.instanceId,
+              targetPos.x,
+              targetPos.y - 52,
+              `+${ev.value}`,
+              {
                 fontFamily: '"JetBrains Mono", monospace',
-                fontSize: '12px',
+                fontSize: '10.5px',
                 fontStyle: 'bold',
                 color: '#34d399',
                 stroke: '#020617',
-                strokeThickness: 3,
-              })
-              .setOrigin(0.5, 0.5);
-            vfxLayer.add(txt);
-            this.tweens.add({
-              targets: txt,
-              y: txt.y - 28,
-              alpha: 0,
-              duration: 650,
-              onComplete: () => txt.destroy(),
-            });
+                strokeThickness: 2.5,
+              },
+              460
+            );
           }
 
-          if (ev.type === 'crowd_control' && target && ev.ccType) {
-            const ccTxt = this.add
-              .text(target.x, target.y - 92, ev.ccType.toUpperCase(), {
+          if (ev.type === 'crowd_control' && target && targetPos && ev.ccType) {
+            const shortCc =
+              STATUS_SHORT_LABELS[ev.ccType] || ev.ccType.toUpperCase();
+            spawnLimitedFloater(
+              target.instanceId,
+              targetPos.x,
+              targetPos.y - 64,
+              shortCc,
+              {
                 fontFamily: '"Plus Jakarta Sans", sans-serif',
-                fontSize: '12px',
+                fontSize: '10px',
                 fontStyle: 'bold',
                 color: '#f472b6',
                 stroke: '#020617',
-                strokeThickness: 3,
-              })
-              .setOrigin(0.5, 0.5);
-            vfxLayer.add(ccTxt);
-            this.tweens.add({
-              targets: ccTxt,
-              y: ccTxt.y - 26,
-              alpha: 0,
-              duration: 750,
-              onComplete: () => ccTxt.destroy(),
-            });
+                strokeThickness: 2.5,
+              },
+              520
+            );
           }
         }
       }
@@ -793,9 +843,9 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
     const game = new Phaser.Game({
       type: Phaser.CANVAS,
       parent: mountEl,
-      width: 1000,
-      height: 540,
-      backgroundColor: '#070a12',
+      width: PORTRAIT_WIDTH,
+      height: PORTRAIT_HEIGHT,
+      backgroundColor: '#0b101b',
       fps: {
         target: 30,
         forceSetTimeOut: true,
@@ -820,7 +870,7 @@ export const PhaserBattleCanvas: React.FC<PhaserBattleCanvasProps> = ({
     <div
       data-testid="phaser-battle-container"
       ref={containerRef}
-      className="w-full h-full flex items-center justify-center bg-[#070a12] overflow-hidden select-none"
+      className="w-full h-full flex items-center justify-center bg-[#0b101b] overflow-hidden select-none"
     />
   );
 };

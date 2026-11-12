@@ -1,0 +1,36 @@
+# ETERNAL REALMS — CURRENT PROJECT AUDIT & PHASER DECISION
+
+**Date Audited:** 2026-11-12  
+**Project:** `AFK Arena Fake — Eternal Realms`
+
+---
+
+## 1. Existing Codebase System Audit
+
+Every major module in the existing repository has been inspected and classified as `WORKING`, `PARTIAL`, `PLACEHOLDER`, `BROKEN`, or `MISSING`:
+
+| System / Module | File Path(s) | Status | Detailed Audit Findings | Action Required |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Core Battle Simulation (`BattleSimulation`)** | `src/game/battleEngine.ts`, `src/game/battleEngine.test.ts` | **`WORKING`** | Deterministic 5v5 real-time simulation with frontline/backline targeting, faction bonuses, haste, shields, crowd control (`stun`, `freeze`, `petrify`, `silence`), knockback, basic attacks, cooldown skills, and `1000`-energy ultimates. Emits structured `CombatEvent`s (`basic_attack`, `active_skill`, `ultimate_cast`, `damage`, `heal`, `shield`, `crowd_control`, `buff`, `knockback`, `death`). 8/8 unit tests pass. | **Preserve 100%** as the single authoritative combat simulation driving the new 3D renderer. |
+| **2. Legacy Secondary Combat Engine** | `src/game/combat/engine.ts`, `src/game/combat/engine.test.ts` | **`BROKEN` (1 test failing)** | Secondary unused combat engine has 1 failing assertion (`Valerius passive should grant starting shield` at `engine.test.ts:201`). | **Fix immediately** so all test suites in the repository pass 100%. |
+| **3. Hero Roster, Stats, Skills & Equipment** | `src/game/heroes.ts`, `src/game/types.ts`, `src/store/gameStore.ts` | **`WORKING`** | 12 core handcrafted heroes (`celestial_guardian`, `iron_bastion`, `abyssal_warden`, `crimson_revenant`, `shadow_sovereign`, `emerald_valkyrie`, `storm_empress`, `pyre_archon`, `dawn_oracle`, `grove_mystic`, `arcane_serpent`, `frost_arbiter`) plus procedural archive expansion (254+ total heroes), ascension tiers, signature items, furniture, and equipment forging. | **Preserve 100%** and map every hero ID/class/faction to bespoke 3D articulated rigs. |
+| **4. Campaign Progression & World Chapters** | `src/game/campaign.ts`, `src/store/gameStore.ts` | **`WORKING`** | 40 chapters with boss nodes, stage themes (`sanctuary`, `sylvan`, `catacombs`, `tempest`, `obsidian`), AFK idle chest rewards, King's Tower, Arena, Labyrinth, and Guild Hunt modes. | **Preserve 100%** and link stage themes directly to the 3 new 3D battle environments (`Enchanted Forest`, `Celestial Temple`, `Shadow Realm`). |
+| **5. Ranhorn City Hub & Classic AFK UI Shell** | `src/App.tsx`, `src/components/ClassicUiKit.tsx`, `src/components/Screens.tsx`, `src/components/ClassicGameIcons.tsx` | **`WORKING`** | Portrait-first (`max-w-[460px]` centered on desktop with widescreen toggle) AFK Arena Classic UI with interactive Ranhorn isometric city hub, Dark Forest map, Noble Tavern gacha, Resonating Crystal, Temple of Ascension, and 5-column hero collection. | **Preserve 100%** and add 3D Graphics Preset, Camera Mode, Environment selector, and live 3D Performance Diagnostics controls. |
+| **6. Formation / Battle Preparation Screen** | `src/App.tsx` (`BattleField` prep state) | **`WORKING`** | Classic 2-frontline / 3-backline formation screen with `VS` power header, faction bonus inspection, 5-column bottom hero picker with checkmarks, and auto-fill/preset buttons. | **Enhance** so the formation battlefield renders the live 3D heroes standing on their 3D faction plinths inside the selected 3D arena before battle starts, with click/tap hero swapping. |
+| **7. Active Battle Renderer (`PhaserBattleCanvas`)** | `src/components/PhaserBattleCanvas.tsx` | **`PARTIAL` (2D Canvas)** | Currently renders 5v5 combat in 2D Phaser using procedural 2D paper-doll canvas textures. While functional in 2D, it does not provide true 3D articulated meshes, 3D PBR lighting, 3D spatial environments, or 3D camera choreography. | **Replace active battle mounting in `App.tsx`** with `ThreeBattleCanvas.tsx` (see Phaser Decision below). |
+| **8. Orphaned Three.js Prototype (`BattlefieldCanvas`)** | `src/components/BattlefieldCanvas.tsx`, `src/game/models3d.ts` | **`PARTIAL` / `ORPHANED`** | Early Three.js prototype coupled to `src/game/rules.ts` instead of `BattleSimulation` (`src/game/battleEngine.ts`). Not mounted in `App.tsx`, lacks the 12 core `HERO_ROSTER` mappings, lacks the 10-state animation machine, lacks the 3 distinct environments, and lacks pooled 5-phase VFX. | **Build `src/components/ThreeBattleCanvas.tsx` & `src/game/threeBattleScene.ts`** integrated directly with `BattleSimulation`, `HERO_ROSTER`, and `useGameStore`. |
+| **9. Web Audio Synthesizer (`SoundEngine`)** | `src/game/audio.ts` | **`PARTIAL`** | Synthesizes basic hit, windup, ultimate, level-up, gacha, victory, and defeat SFX, plus simple mute toggle, but lacks the 8 isolated category buses (`Music`, `Ambient`, `Voice`, `Basic Attack`, `Skill`, `Ultimate`, `Impact`, `UI`), per-bus volume controls, active voice pooling cap, and ambient loop synthesis. | **Upgrade `src/game/audio.ts`** to full 8-bus architecture while keeping all existing methods backward-compatible. |
+| **10. 3D Graphics Presets & Real Perf Telemetry** | `src/store/gameStore.ts`, `src/components/ClassicUiKit.tsx` | **`MISSING`** | Currently only has `reducedMotion` and `combatSpeed`. Lacks `LOW` / `MEDIUM` / `HIGH` / `ULTRA` / `AUTO` presets, `Camera Shake` toggle, `Ultimate Camera` toggle, and live measured FPS / 1% low / frame time / draw calls / triangles / memory telemetry. | **Implement** full graphics preset pipeline and real `THREE.WebGLRenderer.info` + frame-time ring buffer diagnostics. |
+
+---
+
+## 2. Explicit Phaser Decision
+
+### Decision: **RETIRE PHASER FROM ACTIVE COMBAT RENDERING — STANDARDIZE ON THREE.JS (`ThreeBattleCanvas.tsx`)**
+
+1. **No Dual-Engine Runtime:** In strict compliance with the architectural rule *"Do NOT keep both Phaser and Three.js running for the same battle scene"*, `<PhaserBattleCanvas>` is removed from the active `<BattleField>` render tree in `src/App.tsx`. Only `<ThreeBattleCanvas>` is mounted for battle preparation and active 5v5 combat.
+2. **Why Three.js Replaces Phaser for Combat:**
+   - **True 3D Articulated Heroes & Silhouettes:** Three.js enables multi-part hierarchical 3D character rigs (`THREE.Group`) with PBR armor, glowing runes, capes, wings, and 3D weapons that cast real shadows and respond to directional key/rim lighting.
+   - **Dynamic 3D Camera Choreography:** A real `THREE.PerspectiveCamera` supports smooth transitions between `STANDARD BATTLE CAMERA`, `FOCUS CAMERA` (skill cast highlight), `ULTIMATE CAMERA` (cinematic dolly zoom with backdrop dim), and `VICTORY CAMERA` without 2D scaling distortion.
+   - **3D Spatial Arenas & Pooled 3D VFX:** Enables real depth-sorted 3D environments (`Enchanted Forest`, `Celestial Temple`, `Shadow Realm`) with `InstancedMesh` props, atmospheric fog, and 3D volumetric/mesh VFX pools.
+3. **Zero Regression to Game Logic:** Because `BattleSimulation` (`src/game/battleEngine.ts`) was cleanly decoupled from Phaser, `ThreeBattleCanvas.tsx` binds directly to the exact same `BattleSimulation` instance, `CombatEvent` stream, `useGameStore` state, and AFK Arena Classic HUD overlay.

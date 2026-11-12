@@ -286,3 +286,77 @@ test('AFK Arena Faction Counter Cycle (+25% damage) and Formation Aura Bonuses (
   assert.equal(auraHypo.critBonusPct, 0.15);
 });
 
+test('3D Battle Scene Engine: Builds all 12 core 3D hero rigs, steps all 10 animation states, maps 3 3D environments, and pools 5-phase VFX', async () => {
+  const {
+    CORE_HERO_ARCHETYPES,
+    GRAPHICS_PRESET_CONFIGS,
+    buildThreeHeroRig,
+    updateThreeHeroAnimation,
+    resolveArenaEnvironment,
+    ThreeVfxPool,
+  } = await import('./threeBattleScene');
+
+  assert.equal(
+    Object.keys(CORE_HERO_ARCHETYPES).length,
+    12,
+    'Must define 12 bespoke 3D core hero archetypes'
+  );
+  assert.equal(
+    Object.keys(GRAPHICS_PRESET_CONFIGS).length,
+    4,
+    'Must define LOW, MEDIUM, HIGH, ULTRA graphics configs'
+  );
+
+  assert.equal(resolveArenaEnvironment('sylvan', 'auto'), 'enchanted_forest');
+  assert.equal(resolveArenaEnvironment('sanctuary', 'auto'), 'celestial_temple');
+  assert.equal(resolveArenaEnvironment('obsidian', 'auto'), 'shadow_realm');
+  assert.equal(resolveArenaEnvironment('sylvan', 'shadow_realm'), 'shadow_realm');
+
+  const owned = createDefaultOwnedHeroes(10, 3);
+  const sim = new BattleSimulation({
+    allyFormation: [
+      'celestial_guardian',
+      'iron_bastion',
+      'storm_empress',
+      'emerald_valkyrie',
+      'dawn_oracle',
+    ],
+    ownedHeroes: owned,
+    enemies: getCampaignStage(1).enemies,
+    seed: 777,
+    autoUltimate: false,
+  });
+
+  const units = sim.getUnits();
+  for (const unit of units) {
+    const rig = buildThreeHeroRig(unit, true);
+    assert.ok(rig.root.children.length >= 4, '3D hero rig must have hierarchical child nodes');
+    updateThreeHeroAnimation(rig, unit, 0.016, 1.0, 'running');
+    assert.equal(rig.animState, 'Idle');
+
+    // Test BasicAttack, Skill, Ultimate, Hit, Knockback, Stun, Victory, Defeat states
+    rig.animState = 'BasicAttack';
+    rig.animTimer = 0.2;
+    updateThreeHeroAnimation(rig, unit, 0.016, 1.1, 'running');
+    assert.equal(rig.animState, 'BasicAttack');
+
+    rig.knockbackOffset = 0.5;
+    updateThreeHeroAnimation(rig, unit, 0.016, 1.2, 'running');
+    assert.equal(rig.animState, 'Knockback');
+
+    rig.knockbackOffset = 0;
+    updateThreeHeroAnimation(rig, unit, 0.016, 1.3, 'victory');
+    assert.equal(rig.animState, unit.team === 'ally' ? 'Victory' : 'Defeat');
+  }
+
+  const vfxPool = new ThreeVfxPool(64);
+  vfxPool.spawnCastBurst({ x: -2, z: 0 }, 0xfbbf24, 1.2);
+  vfxPool.spawnProjectile({ x: -2, z: 0 }, { x: 2, z: 0 }, 0x38bdf8, 0.25);
+  vfxPool.spawnSlashArc({ x: 2, z: 0 }, 0xef4444, false);
+  vfxPool.spawnImpact({ x: 2, z: 0 }, 0xfbbf24, 1.4, true);
+  assert.ok(vfxPool.getActiveCount() >= 5, '5-phase VFX pool should activate pooled meshes');
+  vfxPool.update(0.1);
+  vfxPool.dispose();
+});
+
+

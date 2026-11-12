@@ -39,11 +39,11 @@ function createMockSave(): GameSaveData {
     lastOfflineClaimTimestamp: Date.now() - 3600 * 1000,
     ownedHeroes,
     formation: [
-      'valerius_dawnblade',
-      'brynjar_ironbreaker',
+      'valerius_dawn',
+      'bram_ironhorn',
       'lyra_sunweaver',
-      'kaelen_thornshot',
-      'seraphina_lumina',
+      'garrick_stormblade',
+      'draven_bloodfang',
     ],
     presets: [],
     inventory: [
@@ -51,7 +51,7 @@ function createMockSave(): GameSaveData {
         instanceId: 'eq_test_1',
         templateId: 'wpn_sun_blade',
         level: 3,
-        equippedHeroId: 'valerius_dawnblade',
+        equippedHeroId: 'valerius_dawn',
       },
     ],
     settings: {
@@ -76,7 +76,7 @@ test('Hero System: Contains at least 12 original heroes across all 5 required ro
 });
 
 test('Stat Calculation: Level, stars, and equipped items increase combat power', () => {
-  const hero = getHeroDefinition('valerius_dawnblade');
+  const hero = getHeroDefinition('valerius_dawn');
   const baseStats = computeHeroCombatStats(
     hero,
     {
@@ -106,7 +106,7 @@ test('Stat Calculation: Level, stars, and equipped items increase combat power',
         instanceId: 'eq_test_1',
         templateId: 'wpn_sun_blade',
         level: 4,
-        equippedHeroId: 'valerius_dawnblade',
+        equippedHeroId: 'valerius_dawn',
       },
     ]
   );
@@ -120,7 +120,7 @@ test('Formation Validation: Prevents duplicate heroes and empty formations', () 
   const save = createMockSave();
 
   const duplicateCheck = validateFormation(
-    ['valerius_dawnblade', 'valerius_dawnblade', null, null, null],
+    ['valerius_dawn', 'valerius_dawn', null, null, null],
     save.ownedHeroes
   );
   assert.equal(duplicateCheck.valid, false);

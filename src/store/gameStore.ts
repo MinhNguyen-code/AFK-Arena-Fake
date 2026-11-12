@@ -128,6 +128,13 @@ function createInitialData() {
     'iron_bastion',
     'shadow_sovereign',
     'emerald_valkyrie',
+    'abyssal_warden',
+    'pyre_archon',
+    'grove_mystic',
+    'frost_arbiter',
+    'solar_paladin',
+    'obsidian_juggernaut',
+    'astral_blademaster',
   ];
 
   const ownedHeroes: Record<string, OwnedHeroState> = {};
@@ -135,7 +142,7 @@ function createInitialData() {
     const def = getHeroById(id);
     ownedHeroes[id] = {
       heroId: id,
-      level: idx < 5 ? 3 : 2,
+      level: idx === 0 ? 5 : idx < 5 ? 4 : idx < 10 ? 3 : 2,
       stars: def.rarity === 'Ascended' ? 2 : 1,
       copies: 2,
       equipment: {
